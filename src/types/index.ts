@@ -42,6 +42,8 @@ export interface Room {
   id: string;
   eventId: string;
   code: string;
+  description: string;
+  ownerId: string;
   members: RoomMember[];
   status: 'waiting' | 'playing' | 'completed';
   createdAt: Date;
