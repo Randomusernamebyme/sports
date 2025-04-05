@@ -5,11 +5,21 @@ import { sampleScripts } from '@/lib/scripts';
 import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function EventDetailPage() {
   const { id } = useParams();
   const { user } = useAuth();
   const script = sampleScripts.find(s => s.id === id);
+  const [showRoomOptions, setShowRoomOptions] = useState(false);
+  const [roomCode, setRoomCode] = useState('');
+  const [selectedMode, setSelectedMode] = useState<'solo' | 'team'>('solo');
+  const router = useRouter();
+
+  const generateRoomCode = () => {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+  };
 
   if (!script) {
     return (
@@ -31,6 +41,53 @@ export default function EventDetailPage() {
       </div>
     );
   }
+
+  const handleModeSelect = (mode: 'solo' | 'team') => {
+    setSelectedMode(mode);
+    if (mode === 'solo') {
+      // 單人模式直接開始
+      localStorage.setItem('activeGame', JSON.stringify({
+        scriptId: id,
+        mode: 'solo',
+        timestamp: Date.now()
+      }));
+      router.push(`/events/${id}/play?mode=solo`);
+    } else {
+      // 組隊模式顯示房間選項
+      setShowRoomOptions(true);
+      setRoomCode('');
+    }
+  };
+
+  const handleCreateRoom = () => {
+    if (selectedMode === 'team') {
+      const code = generateRoomCode();
+      setRoomCode(code);
+      // 保存遊戲狀態
+      localStorage.setItem('activeGame', JSON.stringify({
+        scriptId: id,
+        mode: 'team',
+        roomCode: code,
+        timestamp: Date.now()
+      }));
+      // 跳轉到遊戲頁面
+      router.push(`/events/${id}/play?mode=team&room=${code}`);
+    }
+  };
+
+  const handleJoinRoom = () => {
+    if (roomCode.trim()) {
+      // 保存遊戲狀態
+      localStorage.setItem('activeGame', JSON.stringify({
+        scriptId: id,
+        mode: 'team',
+        roomCode: roomCode.trim(),
+        timestamp: Date.now()
+      }));
+      // 跳轉到遊戲頁面
+      router.push(`/events/${id}/play?mode=team&room=${roomCode.trim()}`);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white">
@@ -81,23 +138,56 @@ export default function EventDetailPage() {
               </div>
             </div>
 
-            <div className="mt-8">
-              {user ? (
-                <Link
-                  href={`/events/${script.id}/play`}
-                  className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            {/* 遊戲模式選擇 */}
+            {!showRoomOptions && (
+              <div className="mt-8 space-y-4">
+                <h3 className="text-lg font-medium text-gray-900">選擇遊戲模式</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <button
+                    onClick={() => handleModeSelect('solo')}
+                    className="p-4 bg-white rounded-lg shadow hover:shadow-md transition-shadow"
+                  >
+                    <h4 className="text-lg font-medium text-gray-900">單人模式</h4>
+                    <p className="mt-1 text-sm text-gray-500">獨自完成所有任務</p>
+                  </button>
+                  <button
+                    onClick={() => handleModeSelect('team')}
+                    className="p-4 bg-white rounded-lg shadow hover:shadow-md transition-shadow"
+                  >
+                    <h4 className="text-lg font-medium text-gray-900">組隊模式</h4>
+                    <p className="mt-1 text-sm text-gray-500">與朋友一起完成任務</p>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 房間選項 */}
+            {showRoomOptions && (
+              <div className="mt-8 space-y-4">
+                <h3 className="text-lg font-medium text-gray-900">創建或加入房間</h3>
+                <button
+                  onClick={handleCreateRoom}
+                  className="w-full px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
                 >
-                  開始遊戲
-                </Link>
-              ) : (
-                <Link
-                  href="/auth/login"
-                  className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                  登入後開始
-                </Link>
-              )}
-            </div>
+                  創建房間
+                </button>
+                <div className="flex space-x-4">
+                  <input
+                    type="text"
+                    value={roomCode}
+                    onChange={(e) => setRoomCode(e.target.value)}
+                    placeholder="輸入房間代碼"
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                  <button
+                    onClick={handleJoinRoom}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                  >
+                    加入房間
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

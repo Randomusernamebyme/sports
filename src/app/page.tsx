@@ -1,14 +1,40 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
+import { sampleScripts } from '@/lib/scripts';
+
+interface GameSession {
+  scriptId: string;
+  mode: 'solo' | 'team';
+  roomCode?: string;
+  timestamp: number;
+}
 
 export default function HomePage() {
   const { user } = useAuth();
+  const [activeGame, setActiveGame] = useState<GameSession | null>(null);
+
+  useEffect(() => {
+    // 從 localStorage 獲取當前遊戲狀態
+    const savedGame = localStorage.getItem('activeGame');
+    if (savedGame) {
+      setActiveGame(JSON.parse(savedGame));
+    }
+  }, []);
+
+  const handleReturnToGame = () => {
+    if (activeGame) {
+      const { scriptId, mode, roomCode } = activeGame;
+      const url = `/events/${scriptId}/play?mode=${mode}${roomCode ? `&room=${roomCode}` : ''}`;
+      window.location.href = url;
+    }
+  };
 
   return (
-    <div className="bg-white">
+    <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white">
       {/* Hero Section */}
       <div className="relative bg-indigo-800">
         <div className="absolute inset-0">
@@ -37,6 +63,29 @@ export default function HomePage() {
           </div>
         </div>
       </div>
+
+      {/* 進行中的遊戲 */}
+      {activeGame && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">進行中的遊戲</h3>
+                <p className="text-sm text-gray-500">
+                  {sampleScripts.find(s => s.id === activeGame.scriptId)?.title} - 
+                  {activeGame.mode === 'solo' ? '單人模式' : '組隊模式'}
+                </p>
+              </div>
+              <button
+                onClick={handleReturnToGame}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+              >
+                返回遊戲
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Features Section */}
       <div className="py-24 bg-white">
@@ -111,8 +160,56 @@ export default function HomePage() {
         </div>
       </div>
 
+      {/* 熱門劇本 */}
+      <div className="bg-indigo-50 py-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <h2 className="text-3xl font-extrabold text-gray-900">熱門劇本</h2>
+            <p className="mt-4 text-lg text-gray-500">探索我們最受歡迎的劇本</p>
+          </div>
+
+          <div className="mt-12 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+            {sampleScripts.slice(0, 3).map((script) => (
+              <Link
+                key={script.id}
+                href={`/events/${script.id}`}
+                className="group"
+              >
+                <div className="bg-white rounded-lg shadow-lg overflow-hidden transition-transform duration-200 hover:scale-105">
+                  <div className="relative h-48">
+                    <Image
+                      src={script.coverImage || '/images/scripts/default.jpg'}
+                      alt={script.title}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                  <div className="p-6">
+                    <h3 className="text-xl font-semibold text-gray-900">{script.title}</h3>
+                    <p className="mt-2 text-gray-500">{script.description}</p>
+                    <div className="mt-4 flex items-center justify-between">
+                      <span className="text-sm text-gray-500">{script.duration} 分鐘</span>
+                      <span className="text-sm text-gray-500">{script.difficulty}</span>
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+
+          <div className="mt-12 text-center">
+            <Link
+              href="/events"
+              className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+            >
+              查看更多劇本
+            </Link>
+          </div>
+        </div>
+      </div>
+
       {/* CTA Section */}
-      <div className="bg-indigo-50">
+      <div className="bg-white">
         <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:py-16 lg:px-8 lg:flex lg:items-center lg:justify-between">
           <h2 className="text-3xl font-extrabold tracking-tight text-gray-900 sm:text-4xl">
             <span className="block">準備好開始冒險了嗎？</span>
