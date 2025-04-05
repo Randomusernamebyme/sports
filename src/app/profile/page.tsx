@@ -303,17 +303,26 @@ export default function ProfilePage() {
         throw new Error('新密碼長度至少為6個字符');
       }
 
-      // 重新驗證用戶
-      const credential = EmailAuthProvider.credential(
-        user.email!,
-        currentPassword
+      // 檢查是否為首次設置密碼
+      const isFirstTimePassword = !user.providerData.some(
+        provider => provider.providerId === 'password'
       );
-      await reauthenticateWithCredential(user, credential);
 
-      // 更新密碼
-      await updatePassword(user, newPassword);
+      if (isFirstTimePassword) {
+        // 首次設置密碼，直接更新
+        await updatePassword(user, newPassword);
+        setSuccessMessage('密碼設置成功');
+      } else {
+        // 修改密碼，需要重新驗證
+        const credential = EmailAuthProvider.credential(
+          user.email!,
+          currentPassword
+        );
+        await reauthenticateWithCredential(user, credential);
+        await updatePassword(user, newPassword);
+        setSuccessMessage('密碼更新成功');
+      }
 
-      setSuccessMessage('密碼更新成功');
       setShowPasswordInput(false);
       setCurrentPassword('');
       setNewPassword('');
@@ -324,6 +333,8 @@ export default function ProfilePage() {
         setError('當前密碼錯誤');
       } else if (err.code === 'auth/weak-password') {
         setError('新密碼強度不足');
+      } else if (err.code === 'auth/requires-recent-login') {
+        setError('請重新登入後再修改密碼');
       } else {
         setError(err.message || '更新密碼失敗');
       }
@@ -422,13 +433,15 @@ export default function ProfilePage() {
               </label>
               {showPasswordInput ? (
                 <div className="space-y-4">
-                  <input
-                    type="password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    placeholder="當前密碼"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  />
+                  {user.providerData.some(provider => provider.providerId === 'password') && (
+                    <input
+                      type="password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="當前密碼"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    />
+                  )}
                   <input
                     type="password"
                     value={newPassword}
@@ -469,7 +482,9 @@ export default function ProfilePage() {
                   onClick={() => setShowPasswordInput(true)}
                   className="text-indigo-600 hover:text-indigo-500"
                 >
-                  修改密碼
+                  {user.providerData.some(provider => provider.providerId === 'password')
+                    ? '修改密碼'
+                    : '設置密碼'}
                 </button>
               )}
             </div>
