@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       await firebaseUpdateProfile(userCredential.user, { displayName: email.split('@')[0] });
-      router.push('/');
+      router.replace('/');
     } catch (error: any) {
       throw new Error(error.message);
     }
@@ -72,7 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       await firebaseSignInWithEmailAndPassword(auth, email, password);
-      router.push('/');
+      router.replace('/');
     } catch (error: any) {
       throw new Error(error.message);
     }
@@ -82,7 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-      router.push('/');
+      router.replace('/');
     } catch (error: any) {
       throw new Error(error.message);
     }
@@ -103,7 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const credential = PhoneAuthProvider.credential(verificationId, code);
       await signInWithCredential(auth, credential);
-      router.push('/');
+      router.replace('/');
     } catch (error: any) {
       throw new Error(error.message);
     }
@@ -112,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     try {
       await firebaseSignOut(auth);
-      router.push('/auth/login');
+      router.replace('/auth/login');
     } catch (error: any) {
       throw new Error(error.message);
     }
@@ -172,7 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!auth.currentUser) throw new Error('No user logged in');
     try {
       await deleteUser(auth.currentUser);
-      router.push('/auth/login');
+      router.replace('/auth/login');
     } catch (error: any) {
       throw new Error(error.message);
     }

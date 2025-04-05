@@ -16,12 +16,12 @@ export default function HomePage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (loading) return;
-
-    if (!user) {
+    if (!loading && !user) {
       router.replace('/auth/login');
       return;
     }
+
+    if (!user) return;
 
     const fetchEvents = async () => {
       try {
