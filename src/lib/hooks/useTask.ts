@@ -78,11 +78,7 @@ export const useTask = () => {
     return () => unsubscribe();
   }, [state.currentTask?.id]);
 
-  const createTask = async (
-    title: string,
-    description?: string,
-    assignedTo?: string
-  ) => {
+  const createTask = async (title: string, description: string, assignedTo?: string) => {
     if (!user) throw new Error('用戶未登入');
 
     try {
@@ -90,7 +86,7 @@ export const useTask = () => {
       const newTask: Task = {
         id: '',
         title,
-        description,
+        description: description || '',
         status: 'pending',
         assignedTo: assignedTo || user.id,
         createdAt: new Date(),

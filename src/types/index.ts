@@ -34,8 +34,11 @@ export interface Task {
   isUnlocked: boolean;
   photo?: string;
   distance?: number;
-  status?: 'success' | 'failed' | 'in_progress';
+  status: 'pending' | 'success' | 'failed' | 'in_progress';
   errorMessage?: string;
+  assignedTo: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface Room {

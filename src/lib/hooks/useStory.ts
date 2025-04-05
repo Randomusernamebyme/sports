@@ -107,7 +107,7 @@ export const useStory = () => {
     }
   };
 
-  const updateStory = async (storyId: string, title: string, content: string) => {
+  const updateStory = async (storyId: string, title: string, content: string, description: string) => {
     if (!user) throw new Error('用戶未登入');
 
     try {
@@ -126,6 +126,7 @@ export const useStory = () => {
 
       await updateDoc(storyRef, {
         title,
+        description,
         content,
         updatedAt: new Date(),
       });
