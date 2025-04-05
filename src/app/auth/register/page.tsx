@@ -16,7 +16,8 @@ export default function RegisterPage() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { signUpWithEmail, signUpWithPhone, verifyPhoneCode, signInWithGoogle } = useAuth();
+  const [verificationId, setVerificationId] = useState('');
+  const { signUp, signInWithPhone, verifyPhoneCode, signInWithGoogle } = useAuth();
   const router = useRouter();
 
   const handleEmailRegister = async (e: React.FormEvent) => {
@@ -31,7 +32,7 @@ export default function RegisterPage() {
     }
 
     try {
-      await signUpWithEmail(email, password);
+      await signUp(email, password);
       router.push('/events');
     } catch (err: any) {
       setError(err.message);
@@ -46,7 +47,8 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      await signUpWithPhone(phoneNumber);
+      const result = await signInWithPhone(phoneNumber);
+      setVerificationId(result.verificationId);
       setIsVerifying(true);
       setError('');
     } catch (err: any) {
@@ -62,7 +64,7 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      await verifyPhoneCode(verificationCode);
+      await verifyPhoneCode(verificationId, verificationCode);
       router.push('/events');
     } catch (err: any) {
       setError(err.message);
