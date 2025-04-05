@@ -40,22 +40,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      // 清理 reCAPTCHA
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+        window.recaptchaVerifier = null;
+      }
+      unsubscribe();
+    };
   }, []);
 
   const setupRecaptcha = () => {
-    if (!window.recaptchaVerifier) {
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        size: 'invisible',
-        callback: () => {
-          console.log('reCAPTCHA solved');
-        },
-        'expired-callback': () => {
-          console.log('reCAPTCHA expired');
+    // 如果已存在，先清理
+    if (window.recaptchaVerifier) {
+      window.recaptchaVerifier.clear();
+      window.recaptchaVerifier = null;
+    }
+
+    // 確保容器存在
+    const container = document.getElementById('recaptcha-container');
+    if (!container) {
+      throw new Error('reCAPTCHA container not found');
+    }
+
+    // 創建新的 reCAPTCHA
+    window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      size: 'invisible',
+      callback: () => {
+        console.log('reCAPTCHA solved');
+      },
+      'expired-callback': () => {
+        console.log('reCAPTCHA expired');
+        if (window.recaptchaVerifier) {
+          window.recaptchaVerifier.clear();
           window.recaptchaVerifier = null;
         }
-      });
-    }
+      }
+    });
+
+    // 立即渲染 reCAPTCHA
+    window.recaptchaVerifier.render().then((widgetId) => {
+      console.log('reCAPTCHA rendered with widget ID:', widgetId);
+    }).catch((error) => {
+      console.error('reCAPTCHA render error:', error);
+    });
+
     return window.recaptchaVerifier;
   };
 
@@ -63,17 +92,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // 移除所有非數字字符
     const cleaned = phoneNumber.replace(/\D/g, '');
     
-    // 如果是香港號碼（8位數字）
-    if (cleaned.length === 8) {
-      return `+852${cleaned}`;
+    // 驗證號碼長度
+    if (cleaned.length !== 8) {
+      throw new Error('手機號碼必須為8位數字');
     }
     
-    // 如果已經包含國際區號
-    if (phoneNumber.startsWith('+')) {
-      return phoneNumber;
-    }
-    
-    // 默認添加香港區號
+    // 返回格式化的號碼，確保使用國際格式
     return `+852${cleaned}`;
   };
 
@@ -113,14 +137,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const formattedPhone = formatPhoneNumber(phoneNumber);
       console.log('Formatted phone number:', formattedPhone);
       
+      // 確保 reCAPTCHA 已經設置
       const recaptchaVerifier = setupRecaptcha();
+      
+      // 等待一小段時間確保 reCAPTCHA 完全初始化
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // 檢查 reCAPTCHA 是否已經解決
+      if (!window.recaptchaVerifier) {
+        throw new Error('reCAPTCHA not initialized');
+      }
+
       const confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifier);
       return confirmationResult;
     } catch (error: any) {
       console.error('電話登入錯誤:', error.message);
+      
+      // 處理特定錯誤
+      if (error.code === 'auth/too-many-requests') {
+        throw new Error('請求次數過多，請稍後再試');
+      } else if (error.code === 'auth/invalid-phone-number') {
+        throw new Error('無效的手機號碼格式');
+      } else if (error.code === 'auth/quota-exceeded') {
+        throw new Error('已超過每日驗證碼配額，請稍後再試');
+      } else if (error.code === 'auth/user-disabled') {
+        throw new Error('此帳號已被停用');
+      } else {
+        throw new Error('發送驗證碼失敗，請稍後再試');
+      }
+    } finally {
       // 如果發生錯誤，清除 reCAPTCHA
-      window.recaptchaVerifier = null;
-      throw error;
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+        window.recaptchaVerifier = null;
+      }
     }
   };
 
@@ -131,7 +181,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return result;
     } catch (error: any) {
       console.error('驗證碼錯誤:', error.message);
-      throw error;
+      
+      // 處理特定錯誤
+      if (error.code === 'auth/invalid-verification-code') {
+        throw new Error('無效的驗證碼');
+      } else if (error.code === 'auth/code-expired') {
+        throw new Error('驗證碼已過期，請重新發送');
+      } else if (error.code === 'auth/too-many-requests') {
+        throw new Error('請求次數過多，請稍後再試');
+      } else {
+        throw new Error('驗證失敗，請稍後再試');
+      }
     }
   };
 

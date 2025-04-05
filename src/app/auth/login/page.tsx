@@ -7,7 +7,7 @@ import Link from 'next/link';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { signIn, signInWithGoogle, signInWithPhone } = useAuth();
+  const { signIn, signInWithGoogle, signInWithPhone, verifyPhoneCode } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -52,11 +52,17 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const confirmationResult = await signInWithPhone(phoneNumber);
+      const cleaned = phoneNumber.replace(/\D/g, '');
+      if (cleaned.length !== 8) {
+        throw new Error('手機號碼必須為8位數字');
+      }
+
+      const confirmationResult = await signInWithPhone(cleaned);
       setVerificationId(confirmationResult.verificationId);
       setShowPhoneVerification(true);
     } catch (error: any) {
       setError(error.message);
+      setShowPhoneVerification(false);
     } finally {
       setLoading(false);
     }
@@ -68,7 +74,10 @@ export default function LoginPage() {
     setError('');
 
     try {
-      await signInWithPhone(verificationCode);
+      if (!verificationId) {
+        throw new Error('驗證碼已過期，請重新發送');
+      }
+      await verifyPhoneCode(verificationId, verificationCode);
       router.push('/');
     } catch (error: any) {
       setError(error.message);
@@ -157,7 +166,13 @@ export default function LoginPage() {
                   <input
                     type="tel"
                     value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '');
+                      if (value.length <= 8) {
+                        setPhoneNumber(value);
+                      }
+                    }}
+                    maxLength={8}
                     placeholder="手機號碼 (例：91234567)"
                     className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                   />
@@ -202,7 +217,7 @@ export default function LoginPage() {
           </Link>
         </div>
 
-        <div id="recaptcha-container"></div>
+        <div id="recaptcha-container" className="fixed bottom-0 left-0 w-full h-0 overflow-hidden"></div>
       </div>
     </div>
   );

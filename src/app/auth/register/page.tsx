@@ -7,7 +7,7 @@ import Link from 'next/link';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { signUp, signInWithGoogle, signInWithPhone } = useAuth();
+  const { signUp, signInWithGoogle, signInWithPhone, verifyPhoneCode } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -57,21 +57,18 @@ export default function RegisterPage() {
     setError('');
 
     try {
-      // 確保電話號碼格式正確
-      let formattedPhone = phoneNumber;
-      if (!phoneNumber.startsWith('+')) {
-        if (phoneNumber.startsWith('0')) {
-          formattedPhone = '+852' + phoneNumber.substring(1);
-        } else {
-          formattedPhone = '+852' + phoneNumber;
-        }
+      // 驗證電話號碼格式
+      const cleaned = phoneNumber.replace(/\D/g, '');
+      if (cleaned.length !== 8) {
+        throw new Error('手機號碼必須為8位數字');
       }
-      
-      const confirmationResult = await signInWithPhone(formattedPhone);
+
+      const confirmationResult = await signInWithPhone(cleaned);
       setVerificationId(confirmationResult.verificationId);
       setShowPhoneVerification(true);
     } catch (error: any) {
       setError(error.message);
+      setShowPhoneVerification(false);
     } finally {
       setLoading(false);
     }
@@ -83,7 +80,10 @@ export default function RegisterPage() {
     setError('');
 
     try {
-      await signInWithPhone(verificationCode);
+      if (!verificationId) {
+        throw new Error('驗證碼已過期，請重新發送');
+      }
+      await verifyPhoneCode(verificationId, verificationCode);
       router.push('/');
     } catch (error: any) {
       setError(error.message);
@@ -227,7 +227,8 @@ export default function RegisterPage() {
           </Link>
         </div>
 
-        <div id="recaptcha-container"></div>
+        {/* reCAPTCHA 容器 */}
+        <div id="recaptcha-container" className="fixed bottom-0 left-0 w-full h-0 overflow-hidden"></div>
       </div>
     </div>
   );
