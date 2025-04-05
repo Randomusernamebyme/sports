@@ -42,8 +42,8 @@ export const useAuth = () => {
           const newUser: UserType = {
             id: user.uid,
             email: user.email || '',
-            displayName: user.displayName,
-            photoURL: user.photoURL,
+            displayName: user.displayName || undefined,
+            photoURL: user.photoURL || undefined,
             createdAt: new Date(),
             lastLoginAt: new Date(),
           };
@@ -88,7 +88,7 @@ export const useAuth = () => {
         id: user.uid,
         email: user.email || '',
         displayName,
-        photoURL: user.photoURL,
+        photoURL: user.photoURL || undefined,
         createdAt: new Date(),
         lastLoginAt: new Date(),
       };
