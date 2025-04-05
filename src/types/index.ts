@@ -1,15 +1,15 @@
 export interface User {
   id: string;
-  email: string;
-  displayName?: string;
-  photoURL?: string;
-  createdAt: Date;
-  lastLoginAt: Date;
+  displayName: string | null;
+  email: string | null;
+  photoURL: string | null;
+  phoneNumber: string | null;
 }
 
 export interface Story {
   id: string;
   title: string;
+  description: string;
   content: string;
   authorId: string;
   createdAt: Date;
@@ -19,21 +19,39 @@ export interface Story {
 export interface Task {
   id: string;
   title: string;
-  description?: string;
-  status: 'pending' | 'in_progress' | 'completed';
-  assignedTo?: string;
-  createdAt: Date;
-  updatedAt: Date;
+  description: string;
+  location: {
+    name: string;
+    address: string;
+    coordinates: {
+      lat: number;
+      lng: number;
+    };
+  };
+  isCompleted: boolean;
+  isUnlocked: boolean;
+  photo?: string;
+  distance?: number;
+  status?: 'success' | 'failed' | 'in_progress';
+  errorMessage?: string;
 }
 
 export interface Room {
   id: string;
-  name: string;
-  description?: string;
-  ownerId: string;
-  members: string[];
+  eventId: string;
+  code: string;
+  members: RoomMember[];
+  status: 'waiting' | 'playing' | 'completed';
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface RoomMember {
+  id: string;
+  name: string;
+  avatar?: string;
+  isReady: boolean;
+  isHost: boolean;
 }
 
 export interface Script {
@@ -82,4 +100,21 @@ export interface GameSession {
   endTime?: Date;
   completedLocations: string[]; // 已完成的地點 ID
   hintsUsed: number;
+}
+
+export interface Event {
+  id: string;
+  title: string;
+  description: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  duration: number;
+  maxPlayers: number;
+  imageUrl: string;
+  rating: number;
+  reviewCount: number;
+  isNew: boolean;
+  isPopular: boolean;
+  tags: string[];
+  createdAt: Date;
+  tasks?: Task[];
 } 

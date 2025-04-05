@@ -26,7 +26,7 @@ export default function LoginPage() {
 
     try {
       await signIn(email, password);
-      router.push('/events');
+      router.push('/');
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -58,7 +58,7 @@ export default function LoginPage() {
 
     try {
       await verifyPhoneCode(verificationId, verificationCode);
-      router.push('/events');
+      router.push('/');
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -72,7 +72,7 @@ export default function LoginPage() {
 
     try {
       await signInWithGoogle();
-      router.push('/events');
+      router.push('/');
     } catch (err: any) {
       setError(err.message);
     } finally {
