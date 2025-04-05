@@ -12,9 +12,25 @@ export default function ForgotPasswordPage() {
   const { resetPassword, loading, error } = useAuth();
   const [email, setEmail] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [formErrors, setFormErrors] = useState<{
+    email?: string;
+  }>({});
+
+  const validateForm = () => {
+    const errors: typeof formErrors = {};
+    if (!email) {
+      errors.email = '請輸入電子郵件';
+    } else if (!/\S+@\S+\.\S+/.test(email)) {
+      errors.email = '請輸入有效的電子郵件地址';
+    }
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validateForm()) return;
+
     try {
       await resetPassword(email);
       setIsSubmitted(true);
@@ -77,13 +93,14 @@ export default function ForgotPasswordPage() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            error={formErrors.email}
             required
           />
         </div>
 
         <div>
-          <Button type="submit" fullWidth>
-            發送重置郵件
+          <Button type="submit" fullWidth disabled={loading}>
+            {loading ? '發送中...' : '發送重置郵件'}
           </Button>
         </div>
       </form>

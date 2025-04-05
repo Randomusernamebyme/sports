@@ -12,9 +12,31 @@ export default function LoginPage() {
   const { login, loginWithGoogle, loading, error } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [formErrors, setFormErrors] = useState<{
+    email?: string;
+    password?: string;
+  }>({});
+
+  const validateForm = () => {
+    const errors: typeof formErrors = {};
+    if (!email) {
+      errors.email = '請輸入電子郵件';
+    } else if (!/\S+@\S+\.\S+/.test(email)) {
+      errors.email = '請輸入有效的電子郵件地址';
+    }
+    if (!password) {
+      errors.password = '請輸入密碼';
+    } else if (password.length < 6) {
+      errors.password = '密碼長度至少為6個字符';
+    }
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validateForm()) return;
+
     try {
       await login(email, password);
     } catch (error) {
@@ -60,6 +82,7 @@ export default function LoginPage() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            error={formErrors.email}
             required
           />
         </div>
@@ -70,6 +93,7 @@ export default function LoginPage() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            error={formErrors.password}
             required
           />
         </div>
@@ -86,8 +110,8 @@ export default function LoginPage() {
         </div>
 
         <div>
-          <Button type="submit" fullWidth>
-            登入
+          <Button type="submit" fullWidth disabled={loading}>
+            {loading ? '登入中...' : '登入'}
           </Button>
         </div>
       </form>
@@ -110,6 +134,7 @@ export default function LoginPage() {
             variant="outline"
             fullWidth
             onClick={handleGoogleLogin}
+            disabled={loading}
           >
             <svg
               className="w-5 h-5 mr-2"
