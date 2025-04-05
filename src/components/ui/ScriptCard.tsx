@@ -12,12 +12,15 @@ export function ScriptCard({ script, onClick }: ScriptCardProps) {
     <Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer" onClick={onClick}>
       <div className="relative h-48 w-full">
         {script.coverImage ? (
-          <Image
-            src={script.coverImage}
-            alt={script.title}
-            fill
-            className="object-cover"
-          />
+          <div className="relative w-full h-full">
+            <Image
+              src={script.coverImage}
+              alt={script.title}
+              fill
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              className="object-cover"
+            />
+          </div>
         ) : (
           <div className="w-full h-full bg-gray-200 flex items-center justify-center">
             <span className="text-gray-400">無封面圖片</span>
