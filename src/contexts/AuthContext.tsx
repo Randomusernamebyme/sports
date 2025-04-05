@@ -8,7 +8,7 @@ import {
   signInWithEmailAndPassword as firebaseSignInWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
-  signOut,
+  signOut as firebaseSignOut,
   onAuthStateChanged,
   updateProfile as firebaseUpdateProfile,
   PhoneAuthProvider,
@@ -18,24 +18,28 @@ import {
   linkWithCredential,
   unlink,
   updatePassword as firebaseUpdatePassword,
-  deleteUser
+  deleteUser,
+  EmailAuthProvider,
+  signInWithCredential,
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signUp: (email: string, password: string) => Promise<UserCredential>;
-  signIn: (email: string, password: string) => Promise<UserCredential>;
-  signInWithGoogle: () => Promise<UserCredential>;
+  signUp: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signInWithPhone: (phoneNumber: string) => Promise<string>;
-  verifyPhoneCode: (verificationId: string, code: string) => Promise<UserCredential>;
+  verifyPhoneCode: (verificationId: string, code: string) => Promise<void>;
   signOut: () => Promise<void>;
-  updateProfile: (data: { displayName?: string; photoURL?: string }) => Promise<void>;
-  updatePassword: (newPassword: string) => Promise<void>;
-  deleteAccount: () => Promise<void>;
+  updateProfile: (displayName: string) => Promise<void>;
   linkPhoneNumber: (phoneNumber: string) => Promise<string>;
   verifyPhoneLinkCode: (verificationId: string, code: string) => Promise<void>;
+  linkEmail: (email: string, password: string) => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<void>;
+  deleteAccount: () => Promise<void>;
   unlinkProvider: (providerId: string) => Promise<void>;
 }
 
@@ -44,6 +48,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -51,165 +56,134 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    return unsubscribe;
+    return () => unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string): Promise<UserCredential> => {
+  const signUp = async (email: string, password: string) => {
     try {
-      const result = await createUserWithEmailAndPassword(auth, email, password);
-      const user = result.user;
-      
-      // 獲取用戶的自定義令牌
-      const idTokenResult = await user.getIdTokenResult();
-      const isAdmin = idTokenResult.claims.admin === true;
-      const isModerator = idTokenResult.claims.moderator === true;
-      
-      // 更新用戶資料
-      if (!user.displayName) {
-        await firebaseUpdateProfile(user, {
-          displayName: email.split('@')[0]
-        });
-      }
-
-      setUser(user);
-      return result;
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      await firebaseUpdateProfile(userCredential.user, { displayName: email.split('@')[0] });
+      router.push('/events');
     } catch (error: any) {
-      console.error('註冊失敗:', error);
-      throw error;
+      throw new Error(error.message);
     }
   };
 
-  const signIn = async (email: string, password: string): Promise<UserCredential> => {
+  const signIn = async (email: string, password: string) => {
     try {
-      const result = await firebaseSignInWithEmailAndPassword(auth, email, password);
-      const user = result.user;
-      
-      // 獲取用戶的自定義令牌
-      const idTokenResult = await user.getIdTokenResult();
-      const isAdmin = idTokenResult.claims.admin === true;
-      const isModerator = idTokenResult.claims.moderator === true;
-      
-      setUser(user);
-      return result;
+      await firebaseSignInWithEmailAndPassword(auth, email, password);
+      router.push('/events');
     } catch (error: any) {
-      console.error('登入失敗:', error);
-      throw error;
+      throw new Error(error.message);
     }
   };
 
-  const signInWithGoogle = async (): Promise<UserCredential> => {
+  const signInWithGoogle = async () => {
     try {
       const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      
-      // 獲取用戶的自定義令牌
-      const idTokenResult = await user.getIdTokenResult();
-      const isAdmin = idTokenResult.claims.admin === true;
-      const isModerator = idTokenResult.claims.moderator === true;
-      
-      setUser(user);
-      return result;
+      await signInWithPopup(auth, provider);
+      router.push('/events');
     } catch (error: any) {
-      console.error('Google 登入失敗:', error);
-      throw error;
+      throw new Error(error.message);
     }
   };
 
-  const signInWithPhone = async (phoneNumber: string): Promise<string> => {
+  const signInWithPhone = async (phoneNumber: string) => {
     try {
-      const appVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        size: 'invisible',
-        callback: () => {
-          // reCAPTCHA solved
-        },
-      });
-
+      const appVerifier = window.recaptchaVerifier;
+      if (!appVerifier) throw new Error('reCAPTCHA not initialized');
       const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
       return confirmationResult.verificationId;
     } catch (error: any) {
-      console.error('手機號碼驗證失敗:', error);
-      throw error;
+      throw new Error(error.message);
     }
   };
 
-  const verifyPhoneCode = async (verificationId: string, code: string): Promise<UserCredential> => {
+  const verifyPhoneCode = async (verificationId: string, code: string) => {
     try {
       const credential = PhoneAuthProvider.credential(verificationId, code);
-      const result = await linkWithCredential(auth.currentUser!, credential);
-      setUser(result.user);
-      return result;
+      await signInWithCredential(auth, credential);
+      router.push('/events');
     } catch (error: any) {
-      console.error('驗證碼驗證失敗:', error);
-      throw error;
+      throw new Error(error.message);
     }
   };
 
-  const signOutUser = async (): Promise<void> => {
+  const signOut = async () => {
     try {
-      await signOut(auth);
-      setUser(null);
+      await firebaseSignOut(auth);
+      router.push('/auth/login');
     } catch (error: any) {
-      console.error('登出失敗:', error);
-      throw error;
+      throw new Error(error.message);
     }
   };
 
-  const updateProfile = async (data: { displayName?: string; photoURL?: string }): Promise<void> => {
-    if (!auth.currentUser) throw new Error('No user logged in');
-    await firebaseUpdateProfile(auth.currentUser, data);
-    setUser(auth.currentUser);
-  };
-
-  const updatePassword = async (newPassword: string): Promise<void> => {
-    if (!auth.currentUser) throw new Error('No user logged in');
-    await firebaseUpdatePassword(auth.currentUser, newPassword);
-  };
-
-  const deleteAccount = async (): Promise<void> => {
-    if (!auth.currentUser) throw new Error('No user logged in');
-    await deleteUser(auth.currentUser);
-    setUser(null);
-  };
-
-  const linkPhoneNumber = async (phoneNumber: string): Promise<string> => {
+  const updateProfile = async (displayName: string) => {
     if (!auth.currentUser) throw new Error('No user logged in');
     try {
-      const appVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        size: 'invisible',
-        callback: () => {
-          // reCAPTCHA solved
-        },
-      });
+      await firebaseUpdateProfile(auth.currentUser, { displayName });
+    } catch (error: any) {
+      throw new Error(error.message);
+    }
+  };
 
+  const linkPhoneNumber = async (phoneNumber: string) => {
+    if (!auth.currentUser) throw new Error('No user logged in');
+    try {
+      const appVerifier = window.recaptchaVerifier;
+      if (!appVerifier) throw new Error('reCAPTCHA not initialized');
       const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
       return confirmationResult.verificationId;
     } catch (error: any) {
-      console.error('手機號碼驗證失敗:', error);
-      throw error;
+      throw new Error(error.message);
     }
   };
 
-  const verifyPhoneLinkCode = async (verificationId: string, code: string): Promise<void> => {
+  const verifyPhoneLinkCode = async (verificationId: string, code: string) => {
     if (!auth.currentUser) throw new Error('No user logged in');
     try {
       const credential = PhoneAuthProvider.credential(verificationId, code);
-      const result = await linkWithCredential(auth.currentUser, credential);
-      setUser(result.user);
+      await linkWithCredential(auth.currentUser, credential);
     } catch (error: any) {
-      console.error('驗證碼驗證失敗:', error);
-      throw error;
+      throw new Error(error.message);
     }
   };
 
-  const unlinkProvider = async (providerId: string): Promise<void> => {
+  const linkEmail = async (email: string, password: string) => {
+    if (!auth.currentUser) throw new Error('No user logged in');
+    try {
+      const credential = EmailAuthProvider.credential(email, password);
+      await linkWithCredential(auth.currentUser, credential);
+    } catch (error: any) {
+      throw new Error(error.message);
+    }
+  };
+
+  const updatePassword = async (newPassword: string) => {
+    if (!auth.currentUser) throw new Error('No user logged in');
+    try {
+      await firebaseUpdatePassword(auth.currentUser, newPassword);
+    } catch (error: any) {
+      throw new Error(error.message);
+    }
+  };
+
+  const deleteAccount = async () => {
+    if (!auth.currentUser) throw new Error('No user logged in');
+    try {
+      await deleteUser(auth.currentUser);
+      router.push('/auth/login');
+    } catch (error: any) {
+      throw new Error(error.message);
+    }
+  };
+
+  const unlinkProvider = async (providerId: string) => {
     if (!auth.currentUser) throw new Error('No user logged in');
     try {
       await unlink(auth.currentUser, providerId);
-      setUser(auth.currentUser);
     } catch (error: any) {
-      console.error('解除綁定失敗:', error);
-      throw error;
+      throw new Error(error.message);
     }
   };
 
@@ -221,13 +195,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signInWithGoogle,
     signInWithPhone,
     verifyPhoneCode,
-    signOut: signOutUser,
+    signOut,
     updateProfile,
-    updatePassword,
-    deleteAccount,
     linkPhoneNumber,
     verifyPhoneLinkCode,
-    unlinkProvider
+    linkEmail,
+    updatePassword,
+    deleteAccount,
+    unlinkProvider,
   };
 
   return (
