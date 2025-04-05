@@ -78,7 +78,7 @@ export const useStory = () => {
     return () => unsubscribe();
   }, [state.currentStory?.id]);
 
-  const createStory = async (title: string, content: string) => {
+  const createStory = async (title: string, content: string, description: string) => {
     if (!user) throw new Error('用戶未登入');
 
     try {
@@ -86,6 +86,7 @@ export const useStory = () => {
       const newStory: Story = {
         id: '',
         title,
+        description,
         content,
         authorId: user.id,
         createdAt: new Date(),
