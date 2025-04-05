@@ -20,11 +20,13 @@ import { auth } from '@/lib/firebase';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  auth: any; // Firebase auth 實例
   signUp: (email: string, password: string) => Promise<UserCredential>;
   signIn: (email: string, password: string) => Promise<UserCredential>;
   signInWithGoogle: () => Promise<UserCredential>;
   signInWithPhone: (phoneNumber: string) => Promise<any>;
   verifyPhoneCode: (verificationId: string, code: string) => Promise<UserCredential>;
+  linkWithGoogle: () => Promise<UserCredential>;
   logout: () => Promise<void>;
 }
 
@@ -253,11 +255,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = {
     user,
     loading,
+    auth,
     signUp,
     signIn,
     signInWithGoogle,
     signInWithPhone,
     verifyPhoneCode,
+    linkWithGoogle: signInWithGoogle,
     logout
   };
 
