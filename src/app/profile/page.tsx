@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Image from 'next/image';
 import Link from 'next/link';
-import { RecaptchaVerifier, PhoneAuthProvider, linkWithPhoneNumber } from 'firebase/auth';
+import { RecaptchaVerifier, PhoneAuthProvider, linkWithPhoneNumber, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
 interface LinkedAccount {
@@ -16,7 +16,7 @@ interface LinkedAccount {
 export default function ProfilePage() {
   const { user, linkWithGoogle } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
-  const [displayName, setDisplayName] = useState('');
+  const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [showPhoneInput, setShowPhoneInput] = useState(false);
@@ -28,6 +28,13 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [showPasswordInput, setShowPasswordInput] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -279,6 +286,52 @@ export default function ProfilePage() {
     }
   };
 
+  const handlePasswordChange = async () => {
+    if (!user) return;
+
+    setIsLoading(true);
+    setError('');
+    setSuccessMessage('');
+
+    try {
+      // 驗證新密碼
+      if (newPassword !== confirmPassword) {
+        throw new Error('新密碼與確認密碼不匹配');
+      }
+
+      if (newPassword.length < 6) {
+        throw new Error('新密碼長度至少為6個字符');
+      }
+
+      // 重新驗證用戶
+      const credential = EmailAuthProvider.credential(
+        user.email!,
+        currentPassword
+      );
+      await reauthenticateWithCredential(user, credential);
+
+      // 更新密碼
+      await updatePassword(user, newPassword);
+
+      setSuccessMessage('密碼更新成功');
+      setShowPasswordInput(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      console.error('更新密碼失敗:', err);
+      if (err.code === 'auth/wrong-password') {
+        setError('當前密碼錯誤');
+      } else if (err.code === 'auth/weak-password') {
+        setError('新密碼強度不足');
+      } else {
+        setError(err.message || '更新密碼失敗');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (!user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -296,53 +349,30 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-3xl mx-auto px-4 py-8">
-        {/* reCAPTCHA container */}
-        <div id="recaptcha-container"></div>
-        
-        {/* 用戶基本信息 */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center space-x-4">
-              <div className="relative h-20 w-20">
-                {user.photoURL ? (
-                  <Image
-                    src={user.photoURL}
-                    alt={displayName}
-                    fill
-                    className="rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="h-20 w-20 rounded-full bg-indigo-100 flex items-center justify-center">
-                    <span className="text-3xl font-medium text-indigo-600">
-                      {displayName[0]}
-                    </span>
-                  </div>
-                )}
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">{displayName || '用戶'}</h1>
-                <p className="text-gray-500">ID: {user.uid}</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setIsEditing(!isEditing)}
-              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              {isEditing ? '取消' : '編輯資料'}
-            </button>
+    <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-bold text-gray-900">個人中心</h1>
+            {!isEditing && (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-500"
+              >
+                編輯資料
+              </button>
+            )}
           </div>
 
           {error && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md text-red-600">
-              {error}
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-sm text-red-600">{error}</p>
             </div>
           )}
 
           {successMessage && (
-            <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-md text-green-600">
-              {successMessage}
+            <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-md">
+              <p className="text-sm text-green-600">{successMessage}</p>
             </div>
           )}
 
@@ -362,6 +392,87 @@ export default function ProfilePage() {
                 <p className="text-gray-900">{displayName || '未設置'}</p>
               )}
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                電子郵件
+              </label>
+              <p className="text-gray-900">{user?.email || '未設置'}</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                手機號碼
+              </label>
+              {user?.phoneNumber ? (
+                <p className="text-gray-900">{user.phoneNumber}</p>
+              ) : (
+                <button
+                  onClick={() => setShowPhoneModal(true)}
+                  className="text-indigo-600 hover:text-indigo-500"
+                >
+                  添加手機號碼
+                </button>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                密碼
+              </label>
+              {showPasswordInput ? (
+                <div className="space-y-4">
+                  <input
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="當前密碼"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  />
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="新密碼"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  />
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="確認新密碼"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  />
+                  <div className="flex space-x-3">
+                    <button
+                      onClick={() => {
+                        setShowPasswordInput(false);
+                        setCurrentPassword('');
+                        setNewPassword('');
+                        setConfirmPassword('');
+                      }}
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                    >
+                      取消
+                    </button>
+                    <button
+                      onClick={handlePasswordChange}
+                      disabled={isLoading}
+                      className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      {isLoading ? '更新中...' : '更新密碼'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowPasswordInput(true)}
+                  className="text-indigo-600 hover:text-indigo-500"
+                >
+                  修改密碼
+                </button>
+              )}
+            </div>
           </div>
 
           {isEditing && (
@@ -377,178 +488,76 @@ export default function ProfilePage() {
           )}
         </div>
 
-        {/* 賬號管理 */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">賬號管理</h2>
-          <div className="space-y-4">
-            {linkedAccounts.map((account) => (
-              <div
-                key={account.type + account.value}
-                className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center">
-                    {account.type === 'email' && (
-                      <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                      </svg>
-                    )}
-                    {account.type === 'phone' && (
-                      <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                      </svg>
-                    )}
-                    {account.type === 'google' && (
-                      <svg className="w-5 h-5 text-indigo-600" viewBox="0 0 24 24">
-                        <path fill="currentColor" d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/>
-                      </svg>
-                    )}
+        {/* 手機號碼驗證模態框 */}
+        {showPhoneModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg max-w-md w-full p-6">
+              <h2 className="text-xl font-bold mb-4">添加手機號碼</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    手機號碼
+                  </label>
+                  <div className="flex">
+                    <span className="inline-flex items-center px-3 py-2 border border-r-0 border-gray-300 rounded-l-md bg-gray-50 text-gray-500">
+                      +852
+                    </span>
+                    <input
+                      type="tel"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      placeholder="輸入8位數字"
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-r-md focus:ring-indigo-500 focus:border-indigo-500"
+                      maxLength={8}
+                    />
                   </div>
-                  <div>
-                    <p className="font-medium text-gray-900">
-                      {account.type === 'email' && '電子郵箱'}
-                      {account.type === 'phone' && '手機號碼'}
-                      {account.type === 'google' && 'Google 賬號'}
-                    </p>
-                    <p className="text-sm text-gray-500">{account.value}</p>
-                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    請輸入8位數字的手機號碼
+                  </p>
                 </div>
-                <div className="flex items-center space-x-2">
-                  {!account.isVerified && account.type !== 'google' && (
-                    <button
-                      onClick={() => handleAddAccount(account.type as 'email' | 'phone')}
-                      className="px-3 py-1 text-sm text-indigo-600 hover:text-indigo-700"
-                    >
-                      驗證
-                    </button>
-                  )}
-                  <span className={`text-sm ${account.isVerified ? 'text-green-600' : 'text-gray-500'}`}>
-                    {account.isVerified ? '已驗證' : '未驗證'}
-                  </span>
+
+                {isVerifying && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      驗證碼
+                    </label>
+                    <input
+                      type="text"
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value)}
+                      placeholder="輸入驗證碼"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    />
+                  </div>
+                )}
+
+                <div className="flex justify-end space-x-3">
+                  <button
+                    onClick={() => {
+                      setShowPhoneModal(false);
+                      setPhoneNumber('');
+                      setVerificationCode('');
+                      setIsVerifying(false);
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={isVerifying ? handleVerifyCode : handleSendPhoneVerification}
+                    disabled={isLoading}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    {isLoading ? '處理中...' : isVerifying ? '驗證' : '發送驗證碼'}
+                  </button>
                 </div>
               </div>
-            ))}
-
-            {/* 添加新賬號 */}
-            <div className="mt-6 grid grid-cols-3 gap-4">
-              {!linkedAccounts.some(a => a.type === 'email') && (
-                <button
-                  onClick={() => handleAddAccount('email')}
-                  className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-                >
-                  <svg className="w-5 h-5 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                  添加郵箱
-                </button>
-              )}
-              {!linkedAccounts.some(a => a.type === 'phone') && (
-                <>
-                  <button
-                    onClick={() => handleAddAccount('phone')}
-                    className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-                  >
-                    <svg className="w-5 h-5 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    添加手機
-                  </button>
-                  {showPhoneInput && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                      <div className="bg-white rounded-lg p-6 w-full max-w-md">
-                        <h3 className="text-lg font-medium mb-4">添加手機號碼</h3>
-                        <div className="mb-4">
-                          <input
-                            type="tel"
-                            value={phoneToVerify}
-                            onChange={(e) => setPhoneToVerify(e.target.value)}
-                            placeholder="請輸入手機號碼（例如：51234567）"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                          />
-                          <p className="mt-1 text-sm text-gray-500">
-                            請輸入香港手機號碼（8位數字，以5-9開頭），無需輸入國際區號
-                          </p>
-                        </div>
-                        {!showVerificationCode ? (
-                          <div className="flex justify-end space-x-3">
-                            <button
-                              onClick={() => {
-                                setShowPhoneInput(false);
-                                setPhoneToVerify('');
-                                setError('');
-                              }}
-                              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                            >
-                              取消
-                            </button>
-                            <button
-                              id="send-code-button"
-                              onClick={handleSendPhoneVerification}
-                              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-                            >
-                              發送驗證碼
-                            </button>
-                          </div>
-                        ) : (
-                          <div>
-                            <div className="mb-4">
-                              <input
-                                type="text"
-                                value={verificationCode}
-                                onChange={(e) => setVerificationCode(e.target.value)}
-                                placeholder="請輸入驗證碼"
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                              />
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <button
-                                onClick={handleResendCode}
-                                disabled={countdown > 0}
-                                className={`text-sm ${countdown > 0 ? 'text-gray-400' : 'text-indigo-600 hover:text-indigo-700'}`}
-                              >
-                                {countdown > 0 ? `${countdown}秒後可重新發送` : '重新發送驗證碼'}
-                              </button>
-                              <div className="space-x-3">
-                                <button
-                                  onClick={() => {
-                                    setShowPhoneInput(false);
-                                    setPhoneToVerify('');
-                                    setVerificationCode('');
-                                    setError('');
-                                  }}
-                                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                                >
-                                  取消
-                                </button>
-                                <button
-                                  onClick={handleVerifyCode}
-                                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-                                >
-                                  驗證
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-              {!linkedAccounts.some(a => a.type === 'google') && (
-                <button
-                  onClick={handleGoogleLink}
-                  className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-                >
-                  <svg className="w-5 h-5 mr-2 text-gray-400" viewBox="0 0 24 24">
-                    <path fill="currentColor" d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/>
-                  </svg>
-                  關聯 Google
-                </button>
-              )}
             </div>
           </div>
-        </div>
+        )}
+
+        {/* reCAPTCHA 容器 */}
+        <div id="recaptcha-container" className="hidden"></div>
       </div>
     </div>
   );
