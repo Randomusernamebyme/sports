@@ -103,21 +103,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (email: string, password: string) => {
     try {
+      // 創建用戶
       const result = await createUserWithEmailAndPassword(auth, email, password);
+      
+      // 確保用戶被正確設置
+      if (result.user) {
+        setUser(result.user);
+      }
+      
       return result;
     } catch (error: any) {
       console.error('註冊錯誤:', error.message);
-      throw error;
+      
+      // 處理特定錯誤
+      if (error.code === 'auth/email-already-in-use') {
+        throw new Error('此電子郵件已被使用');
+      } else if (error.code === 'auth/invalid-email') {
+        throw new Error('無效的電子郵件格式');
+      } else if (error.code === 'auth/weak-password') {
+        throw new Error('密碼強度不足');
+      } else {
+        throw new Error('註冊失敗，請稍後再試');
+      }
     }
   };
 
   const signIn = async (email: string, password: string) => {
     try {
       const result = await signInWithEmailAndPassword(auth, email, password);
+      
+      // 確保用戶被正確設置
+      if (result.user) {
+        setUser(result.user);
+      }
+      
       return result;
     } catch (error: any) {
       console.error('登入錯誤:', error.message);
-      throw error;
+      
+      // 處理特定錯誤
+      if (error.code === 'auth/user-not-found') {
+        throw new Error('找不到此用戶');
+      } else if (error.code === 'auth/wrong-password') {
+        throw new Error('密碼錯誤');
+      } else if (error.code === 'auth/invalid-email') {
+        throw new Error('無效的電子郵件格式');
+      } else {
+        throw new Error('登入失敗，請稍後再試');
+      }
     }
   };
 
