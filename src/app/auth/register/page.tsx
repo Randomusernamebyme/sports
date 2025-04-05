@@ -57,7 +57,17 @@ export default function RegisterPage() {
     setError('');
 
     try {
-      const confirmationResult = await signInWithPhone(phoneNumber);
+      // 確保電話號碼格式正確
+      let formattedPhone = phoneNumber;
+      if (!phoneNumber.startsWith('+')) {
+        if (phoneNumber.startsWith('0')) {
+          formattedPhone = '+852' + phoneNumber.substring(1);
+        } else {
+          formattedPhone = '+852' + phoneNumber;
+        }
+      }
+      
+      const confirmationResult = await signInWithPhone(formattedPhone);
       setVerificationId(confirmationResult.verificationId);
       setShowPhoneVerification(true);
     } catch (error: any) {
@@ -176,7 +186,7 @@ export default function RegisterPage() {
                     type="tel"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
-                    placeholder="手機號碼 (+886...)"
+                    placeholder="手機號碼 (例：91234567)"
                     className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                   />
                   <button
