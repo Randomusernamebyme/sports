@@ -5,39 +5,54 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { sampleScripts } from '@/lib/scripts';
-
-interface GameSession {
-  scriptId: string;
-  mode: 'solo' | 'team';
-  roomCode?: string;
-  timestamp: number;
-}
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase/config';
+import { GameSession } from '@/types';
 
 export default function HomePage() {
   const { user } = useAuth();
-  const [activeGame, setActiveGame] = useState<GameSession | null>(null);
+  const [completedGames, setCompletedGames] = useState(0);
+  const [latestSession, setLatestSession] = useState<GameSession | null>(null);
 
   useEffect(() => {
-    // 從 localStorage 獲取當前遊戲狀態
-    const savedGame = localStorage.getItem('activeGame');
-    if (savedGame) {
-      setActiveGame(JSON.parse(savedGame));
-    }
-  }, []);
+    const fetchGameProgress = async () => {
+      if (!user) return;
 
-  const handleReturnToGame = () => {
-    if (activeGame) {
-      const { scriptId, mode, roomCode } = activeGame;
-      const url = `/events/${scriptId}/play?mode=${mode}${roomCode ? `&room=${roomCode}` : ''}`;
-      window.location.href = url;
-    }
-  };
+      try {
+        const sessionsRef = collection(db, 'gameSessions');
+        
+        // 獲取已完成的遊戲數量
+        const completedQuery = query(
+          sessionsRef,
+          where('userId', '==', user.uid),
+          where('status', '==', 'completed')
+        );
+        const completedSnapshot = await getDocs(completedQuery);
+        setCompletedGames(completedSnapshot.size);
+
+        // 獲取最新的進行中遊戲
+        const inProgressQuery = query(
+          sessionsRef,
+          where('userId', '==', user.uid),
+          where('status', '==', 'in_progress')
+        );
+        const inProgressSnapshot = await getDocs(inProgressQuery);
+        if (!inProgressSnapshot.empty) {
+          const latestGame = inProgressSnapshot.docs[0].data() as GameSession;
+          setLatestSession(latestGame);
+        }
+      } catch (error) {
+        console.error('獲取遊戲進度失敗:', error);
+      }
+    };
+
+    fetchGameProgress();
+  }, [user]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* 頂部用戶信息 */}
-      <div className="bg-white p-4 shadow-sm">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+    <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-center space-x-3">
             {user ? (
               <>
@@ -61,7 +76,7 @@ export default function HomePage() {
                     {user.displayName || '用戶'}
                   </p>
                   <p className="text-sm text-gray-500">
-                    已完成 {0} 個任務
+                    已完成 {completedGames} 個遊戲
                   </p>
                 </div>
               </>
@@ -74,87 +89,31 @@ export default function HomePage() {
               </Link>
             )}
           </div>
-        </div>
-      </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        {/* 進行中的遊戲 */}
-        {activeGame && (
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-medium text-gray-900">進行中的遊戲</h3>
-                <p className="text-sm text-gray-500">
-                  {sampleScripts.find(s => s.id === activeGame.scriptId)?.title} - 
-                  {activeGame.mode === 'solo' ? '單人模式' : '組隊模式'}
-                </p>
-              </div>
-              <button
-                onClick={handleReturnToGame}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-              >
-                繼續遊戲
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* 快速操作 */}
-        <div className="grid grid-cols-2 gap-4">
-          <Link
-            href="/events"
-            className="bg-white p-4 rounded-lg shadow text-center hover:shadow-md transition-shadow"
-          >
-            <div className="h-12 w-12 mx-auto mb-2 rounded-full bg-indigo-100 flex items-center justify-center">
-              <svg className="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-            </div>
-            <p className="font-medium text-gray-900">開始新遊戲</p>
-          </Link>
-          <Link
-            href="/profile"
-            className="bg-white p-4 rounded-lg shadow text-center hover:shadow-md transition-shadow"
-          >
-            <div className="h-12 w-12 mx-auto mb-2 rounded-full bg-indigo-100 flex items-center justify-center">
-              <svg className="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            </div>
-            <p className="font-medium text-gray-900">個人中心</p>
-          </Link>
-        </div>
-
-        {/* 最近劇本 */}
-        <div>
-          <h2 className="text-lg font-medium text-gray-900 mb-4">最近劇本</h2>
-          <div className="grid gap-4">
-            {sampleScripts.slice(0, 3).map((script) => (
-              <Link
-                key={script.id}
-                href={`/events/${script.id}`}
-                className="bg-white rounded-lg shadow overflow-hidden flex items-center"
-              >
-                <div className="relative h-24 w-24 flex-shrink-0">
-                  <Image
-                    src={script.coverImage || '/images/scripts/default.jpg'}
-                    alt={script.title}
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-                <div className="p-4 flex-1">
-                  <h3 className="font-medium text-gray-900">{script.title}</h3>
-                  <p className="text-sm text-gray-500 line-clamp-1">{script.description}</p>
-                  <div className="mt-2 flex items-center text-xs text-gray-500 space-x-2">
-                    <span>{script.duration} 分鐘</span>
-                    <span>•</span>
-                    <span>{script.difficulty}</span>
+          {latestSession && (
+            <div className="mt-6 border-t pt-6">
+              <h3 className="text-lg font-medium text-gray-900">繼續遊戲</h3>
+              <div className="mt-4 bg-indigo-50 rounded-lg p-4">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-sm text-gray-600">進行中的遊戲</p>
+                    <p className="mt-1 text-sm text-gray-500">
+                      已完成 {latestSession.completedLocations.length} 個地點
+                    </p>
+                    <p className="mt-1 text-sm text-gray-500">
+                      目前得分：{latestSession.score}
+                    </p>
                   </div>
+                  <Link
+                    href={`/events/${latestSession.scriptId}/play`}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                  >
+                    繼續
+                  </Link>
                 </div>
-              </Link>
-            ))}
-          </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

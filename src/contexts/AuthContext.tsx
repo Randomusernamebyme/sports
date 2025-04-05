@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     // 立即渲染 reCAPTCHA
-    window.recaptchaVerifier.render().then((widgetId) => {
+    window.recaptchaVerifier.render().then((widgetId: number) => {
       console.log('reCAPTCHA rendered with widget ID:', widgetId);
     }).catch((error) => {
       console.error('reCAPTCHA render error:', error);

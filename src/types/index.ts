@@ -82,4 +82,5 @@ export interface GameSession {
   endTime?: Date;
   completedLocations: string[]; // 已完成的地點 ID
   hintsUsed: number;
+  updatedAt?: Date;
 } 
