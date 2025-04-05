@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       await firebaseUpdateProfile(userCredential.user, { displayName: email.split('@')[0] });
-      router.push('/events');
+      router.push('/');
     } catch (error: any) {
       throw new Error(error.message);
     }
@@ -72,7 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       await firebaseSignInWithEmailAndPassword(auth, email, password);
-      router.push('/events');
+      router.push('/');
     } catch (error: any) {
       throw new Error(error.message);
     }
@@ -82,7 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-      router.push('/events');
+      router.push('/');
     } catch (error: any) {
       throw new Error(error.message);
     }
@@ -103,7 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const credential = PhoneAuthProvider.credential(verificationId, code);
       await signInWithCredential(auth, credential);
-      router.push('/events');
+      router.push('/');
     } catch (error: any) {
       throw new Error(error.message);
     }
