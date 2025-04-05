@@ -23,6 +23,9 @@ interface Task {
   isCompleted: boolean;
   isUnlocked: boolean;
   photo?: string;
+  distance?: number;
+  status?: 'success' | 'failed' | 'in_progress';
+  errorMessage?: string;
 }
 
 export default function PlayPage() {
@@ -38,6 +41,8 @@ export default function PlayPage() {
   const [showCamera, setShowCamera] = useState(false);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [taskError, setTaskError] = useState<string | null>(null);
+  const MAX_DISTANCE = 1000; // 最大允許距離（米）
 
   useEffect(() => {
     if (script) {
@@ -116,10 +121,76 @@ export default function PlayPage() {
     );
   };
 
+  // 計算兩點之間的距離（米）
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371e3; // 地球半徑（米）
+    const φ1 = lat1 * Math.PI/180;
+    const φ2 = lat2 * Math.PI/180;
+    const Δφ = (lat2-lat1) * Math.PI/180;
+    const Δλ = (lon2-lon1) * Math.PI/180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    return R * c;
+  };
+
+  // 更新任務距離
+  useEffect(() => {
+    if (currentLocation) {
+      const updatedTasks = tasks.map(task => {
+        const distance = calculateDistance(
+          currentLocation.lat,
+          currentLocation.lng,
+          task.location.coordinates.lat,
+          task.location.coordinates.lng
+        );
+        return {
+          ...task,
+          distance
+        };
+      });
+      setTasks(updatedTasks);
+    }
+  }, [currentLocation]);
+
+  // 格式化距離顯示
+  const formatDistance = (meters: number) => {
+    if (meters >= 1000) {
+      return `${(meters / 1000).toFixed(1)}公里`;
+    }
+    return `${Math.round(meters)}米`;
+  };
+
   const handleTaskClick = (taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
     if (task) {
+      if (!task.isUnlocked) {
+        setTaskError('此任務尚未解鎖');
+        return;
+      }
+
+      if (!currentLocation) {
+        setTaskError('無法獲取當前位置');
+        return;
+      }
+
+      const distance = calculateDistance(
+        currentLocation.lat,
+        currentLocation.lng,
+        task.location.coordinates.lat,
+        task.location.coordinates.lng
+      );
+
+      if (distance > MAX_DISTANCE) {
+        setTaskError(`您需要更靠近任務地點（當前距離：${formatDistance(distance)}）`);
+        return;
+      }
+
       setSelectedTask(task);
+      setTaskError(null);
     }
   };
 
@@ -147,11 +218,41 @@ export default function PlayPage() {
   const handleTaskSubmit = async () => {
     if (selectedTask && capturedPhoto) {
       setIsSubmitting(true);
-      // 這裡應該發送照片到後端進行處理
-      // 暫時用本地處理代替
-      console.log('照片已提交:', capturedPhoto);
-      setCapturedPhoto(null);
-      setIsSubmitting(false);
+      try {
+        // 這裡應該發送照片到後端進行處理
+        // 模擬後端處理
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // 更新任務狀態
+        setTasks(tasks.map(task =>
+          task.id === selectedTask.id
+            ? {
+                ...task,
+                isCompleted: true,
+                photo: capturedPhoto,
+                status: 'success'
+              }
+            : task
+        ));
+
+        // 解鎖下一個任務
+        const currentIndex = tasks.findIndex(t => t.id === selectedTask.id);
+        if (currentIndex < tasks.length - 1) {
+          setTasks(tasks.map((task, index) =>
+            index === currentIndex + 1
+              ? { ...task, isUnlocked: true }
+              : task
+          ));
+        }
+
+        setSelectedTask(null);
+        setCapturedPhoto(null);
+      } catch (error) {
+        console.error('提交失敗:', error);
+        setTaskError('提交失敗，請重試');
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -196,8 +297,10 @@ export default function PlayPage() {
                   <div
                     key={task.id}
                     className={`p-4 rounded-lg border ${
-                      task.isCompleted
+                      task.status === 'success'
                         ? 'bg-green-50 border-green-200'
+                        : task.status === 'failed'
+                        ? 'bg-red-50 border-red-200'
                         : task.isUnlocked
                         ? 'bg-white border-gray-200 hover:border-indigo-300 cursor-pointer'
                         : 'bg-gray-50 border-gray-200 opacity-50'
@@ -206,8 +309,10 @@ export default function PlayPage() {
                   >
                     <div className="flex items-center justify-between">
                       <h3 className="font-medium">{task.title}</h3>
-                      {task.isCompleted ? (
+                      {task.status === 'success' ? (
                         <span className="text-green-600">✓ 已完成</span>
+                      ) : task.status === 'failed' ? (
+                        <span className="text-red-600">✗ 失敗</span>
                       ) : task.isUnlocked ? (
                         <span className="text-indigo-600">可進行</span>
                       ) : (
@@ -215,10 +320,18 @@ export default function PlayPage() {
                       )}
                     </div>
                     <p className="mt-2 text-sm text-gray-600">{task.description}</p>
-                    {task.location.address && (
+                    {task.distance && (
                       <p className="mt-1 text-xs text-gray-500">
-                        地址：{task.location.address}
+                        距離：{formatDistance(task.distance)}
+                        {task.distance > MAX_DISTANCE && task.isUnlocked && (
+                          <span className="text-red-500 ml-2">
+                            （需要更靠近，至少在1公里內）
+                          </span>
+                        )}
                       </p>
+                    )}
+                    {task.errorMessage && (
+                      <p className="mt-1 text-xs text-red-500">{task.errorMessage}</p>
                     )}
                   </div>
                 ))}
@@ -293,6 +406,12 @@ export default function PlayPage() {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {taskError && (
+            <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded z-50">
+              {taskError}
             </div>
           )}
         </div>
