@@ -158,6 +158,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
+      
+      // 確保用戶被正確設置
+      if (result.user) {
+        setUser(result.user);
+      }
+      
       return result;
     } catch (error: any) {
       console.error('Google 登入錯誤:', error.message);
@@ -211,6 +217,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const credential = PhoneAuthProvider.credential(verificationId, code);
       const result = await signInWithCredential(auth, credential);
+      
+      // 確保用戶被正確設置
+      if (result.user) {
+        setUser(result.user);
+      }
+      
       return result;
     } catch (error: any) {
       console.error('驗證碼錯誤:', error.message);
@@ -228,8 +240,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const logout = () => {
-    return signOut(auth);
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      setUser(null);
+    } catch (error: any) {
+      console.error('登出錯誤:', error.message);
+      throw error;
+    }
   };
 
   const value = {
