@@ -59,6 +59,18 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
         await loader.load();
         setIsMapLoaded(true);
         setMapError(null);
+
+        // 初始化地圖
+        if (mapRef.current && currentLocation) {
+          mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
+            center: currentLocation,
+            zoom: 15,
+            mapTypeControl: false,
+            fullscreenControl: false,
+            streetViewControl: false,
+            gestureHandling: 'greedy'
+          });
+        }
       } catch (error) {
         console.error('Failed to load Google Maps:', error);
         setMapError('無法載入地圖，請檢查網絡連接或重新整理頁面');
@@ -69,32 +81,23 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
 
     return () => {
       // 清除所有標記
-      markersRef.current.forEach(marker => {
-        if (marker && typeof marker.setMap === 'function') {
-          marker.setMap(null);
-        }
-      });
-      markersRef.current = [];
+      if (markersRef.current) {
+        markersRef.current.forEach(marker => {
+          if (marker && typeof marker.setMap === 'function') {
+            marker.setMap(null);
+          }
+        });
+        markersRef.current = [];
+      }
     };
-  }, []);
+  }, [currentLocation]);
 
   useEffect(() => {
-    if (!isMapLoaded || !mapRef.current || !currentLocation || mapError) return;
+    if (!isMapLoaded || !mapRef.current || !currentLocation || mapError || !mapInstanceRef.current) return;
 
     try {
-      // 初始化地圖
-      if (!mapInstanceRef.current) {
-        mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
-          center: currentLocation,
-          zoom: 15,
-          mapTypeControl: false,
-          fullscreenControl: false,
-          streetViewControl: false,
-          gestureHandling: 'greedy'
-        });
-      } else {
-        mapInstanceRef.current.setCenter(currentLocation);
-      }
+      // 更新地圖中心
+      mapInstanceRef.current.setCenter(currentLocation);
 
       // 清除舊的當前位置標記
       if (markersRef.current[0]) {
