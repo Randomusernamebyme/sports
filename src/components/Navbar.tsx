@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 export default function Navbar() {
   const pathname = usePathname();
-  const { user, signOut } = useAuth();
+  const { user, logout } = useAuth();
 
   const isActive = (path: string) => pathname === path;
 
@@ -75,7 +75,7 @@ export default function Navbar() {
                   個人中心
                 </Link>
                 <button
-                  onClick={() => signOut()}
+                  onClick={() => logout()}
                   className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
                   登出

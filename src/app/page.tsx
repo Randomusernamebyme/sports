@@ -1,111 +1,160 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { Event } from '@/types';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
+import { useAuth } from '@/contexts/AuthContext';
+import { sampleScripts } from '@/lib/scripts';
+
+interface GameSession {
+  scriptId: string;
+  mode: 'solo' | 'team';
+  roomCode?: string;
+  timestamp: number;
+}
 
 export default function HomePage() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-  const [events, setEvents] = useState<Event[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { user } = useAuth();
+  const [activeGame, setActiveGame] = useState<GameSession | null>(null);
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.replace('/auth/login');
-      return;
+    // 從 localStorage 獲取當前遊戲狀態
+    const savedGame = localStorage.getItem('activeGame');
+    if (savedGame) {
+      setActiveGame(JSON.parse(savedGame));
     }
+  }, []);
 
-    if (!user) return;
-
-    const fetchEvents = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, 'events'));
-        const eventsData = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as Event[];
-        setEvents(eventsData);
-      } catch (error: any) {
-        console.error('獲取劇本列表失敗:', error);
-        setError('獲取劇本列表失敗');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchEvents();
-  }, [user, loading, router]);
-
-  if (loading || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return null;
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-red-500">{error}</div>
-      </div>
-    );
-  }
+  const handleReturnToGame = () => {
+    if (activeGame) {
+      const { scriptId, mode, roomCode } = activeGame;
+      const url = `/events/${scriptId}/play?mode=${mode}${roomCode ? `&room=${roomCode}` : ''}`;
+      window.location.href = url;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">熱門劇本</h1>
+      {/* 頂部用戶信息 */}
+      <div className="bg-white p-4 shadow-sm">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            {user ? (
+              <>
+                <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center">
+                  {user.photoURL ? (
+                    <Image
+                      src={user.photoURL}
+                      alt={user.displayName || '用戶'}
+                      width={40}
+                      height={40}
+                      className="rounded-full"
+                    />
+                  ) : (
+                    <span className="text-xl font-medium text-indigo-600">
+                      {(user.displayName || '用戶')[0]}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">
+                    {user.displayName || '用戶'}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    已完成 {0} 個任務
+                  </p>
+                </div>
+              </>
+            ) : (
+              <Link
+                href="/auth/login"
+                className="text-indigo-600 font-medium"
+              >
+                登入/註冊
+              </Link>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+        {/* 進行中的遊戲 */}
+        {activeGame && (
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">進行中的遊戲</h3>
+                <p className="text-sm text-gray-500">
+                  {sampleScripts.find(s => s.id === activeGame.scriptId)?.title} - 
+                  {activeGame.mode === 'solo' ? '單人模式' : '組隊模式'}
+                </p>
+              </div>
+              <button
+                onClick={handleReturnToGame}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+              >
+                繼續遊戲
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 快速操作 */}
+        <div className="grid grid-cols-2 gap-4">
           <Link
             href="/events"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+            className="bg-white p-4 rounded-lg shadow text-center hover:shadow-md transition-shadow"
           >
-            查看全部
+            <div className="h-12 w-12 mx-auto mb-2 rounded-full bg-indigo-100 flex items-center justify-center">
+              <svg className="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+            </div>
+            <p className="font-medium text-gray-900">開始新遊戲</p>
+          </Link>
+          <Link
+            href="/profile"
+            className="bg-white p-4 rounded-lg shadow text-center hover:shadow-md transition-shadow"
+          >
+            <div className="h-12 w-12 mx-auto mb-2 rounded-full bg-indigo-100 flex items-center justify-center">
+              <svg className="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+            <p className="font-medium text-gray-900">個人中心</p>
           </Link>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {events.map((event) => (
-            <div key={event.id} className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="aspect-w-16 aspect-h-9">
-                <img
-                  src={event.imageUrl || '/images/placeholder.jpg'}
-                  alt={event.title}
-                  className="object-cover w-full h-full"
-                />
-              </div>
-              <div className="p-4">
-                <h2 className="text-xl font-semibold text-gray-900">{event.title}</h2>
-                <p className="mt-2 text-gray-600 line-clamp-2">{event.description}</p>
-                <div className="mt-4 flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm text-gray-500">
-                      {event.maxPlayers} 人
-                    </span>
-                    <span className="text-sm text-gray-500">
-                      {event.duration} 分鐘
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => router.push(`/events/${event.id}`)}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-                  >
-                    查看詳情
-                  </button>
+
+        {/* 最近劇本 */}
+        <div>
+          <h2 className="text-lg font-medium text-gray-900 mb-4">最近劇本</h2>
+          <div className="grid gap-4">
+            {sampleScripts.slice(0, 3).map((script) => (
+              <Link
+                key={script.id}
+                href={`/events/${script.id}`}
+                className="bg-white rounded-lg shadow overflow-hidden flex items-center"
+              >
+                <div className="relative h-24 w-24 flex-shrink-0">
+                  <Image
+                    src={script.coverImage || '/images/scripts/default.jpg'}
+                    alt={script.title}
+                    fill
+                    className="object-cover"
+                  />
                 </div>
-              </div>
-            </div>
-          ))}
+                <div className="p-4 flex-1">
+                  <h3 className="font-medium text-gray-900">{script.title}</h3>
+                  <p className="text-sm text-gray-500 line-clamp-1">{script.description}</p>
+                  <div className="mt-2 flex items-center text-xs text-gray-500 space-x-2">
+                    <span>{script.duration} 分鐘</span>
+                    <span>•</span>
+                    <span>{script.difficulty}</span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
     </div>

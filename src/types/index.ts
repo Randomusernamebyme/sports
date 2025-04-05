@@ -1,17 +1,15 @@
 export interface User {
   id: string;
   email: string;
-  displayName: string | null;
-  photoURL: string | null;
+  displayName?: string;
+  photoURL?: string;
   createdAt: Date;
   lastLoginAt: Date;
-  phoneNumber: string | null;
 }
 
 export interface Story {
   id: string;
   title: string;
-  description: string;
   content: string;
   authorId: string;
   createdAt: Date;
@@ -21,44 +19,34 @@ export interface Story {
 export interface Task {
   id: string;
   title: string;
-  description: string;
-  location: {
-    name: string;
-    address: string;
-    coordinates: {
-      lat: number;
-      lng: number;
-    };
-  };
-  isCompleted: boolean;
-  isUnlocked: boolean;
-  photo?: string;
-  distance?: number;
-  status: 'pending' | 'success' | 'failed' | 'in_progress';
-  errorMessage?: string;
-  assignedTo: string;
+  description?: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  assignedTo?: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export interface Room {
   id: string;
-  eventId: string;
-  code: string;
-  description: string;
+  name: string;
+  description?: string;
   ownerId: string;
-  members: RoomMember[];
-  status: 'waiting' | 'playing' | 'completed';
+  members: string[];
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface RoomMember {
+export interface Script {
   id: string;
-  name: string;
-  avatar?: string;
-  isReady: boolean;
-  isHost: boolean;
+  title: string;
+  description: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  duration: number; // 預計完成時間（分鐘）
+  price: number;
+  coverImage?: string;
+  locations: Location[];
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface Location {
@@ -70,29 +58,17 @@ export interface Location {
     latitude: number;
     longitude: number;
   };
-  clues: string[];
-  order: number;
+  clues: Clue[];
+  order: number; // 地點的順序
 }
 
-export interface Event {
+export interface Clue {
   id: string;
-  title: string;
-  description: string;
-  difficulty: 'easy' | 'medium' | 'hard';
-  duration: number;
-  maxPlayers: number;
-  price: number;
-  imageUrl?: string;
-  rating?: number;
-  reviewCount?: number;
-  isNew?: boolean;
-  isPopular?: boolean;
-  tags?: string[];
-  locations: Location[];
-  tasks?: Task[];
-  authorId: string;
-  createdAt: Date;
-  updatedAt: Date;
+  content: string;
+  type: 'text' | 'image' | 'riddle' | 'puzzle';
+  hint?: string;
+  answer: string;
+  points: number; // 解開線索可獲得的積分
 }
 
 export interface GameSession {

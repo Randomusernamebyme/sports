@@ -78,7 +78,7 @@ export const useStory = () => {
     return () => unsubscribe();
   }, [state.currentStory?.id]);
 
-  const createStory = async (title: string, content: string, description: string) => {
+  const createStory = async (title: string, content: string) => {
     if (!user) throw new Error('用戶未登入');
 
     try {
@@ -86,7 +86,6 @@ export const useStory = () => {
       const newStory: Story = {
         id: '',
         title,
-        description,
         content,
         authorId: user.id,
         createdAt: new Date(),
@@ -107,7 +106,7 @@ export const useStory = () => {
     }
   };
 
-  const updateStory = async (storyId: string, title: string, content: string, description: string) => {
+  const updateStory = async (storyId: string, title: string, content: string) => {
     if (!user) throw new Error('用戶未登入');
 
     try {
@@ -126,7 +125,6 @@ export const useStory = () => {
 
       await updateDoc(storyRef, {
         title,
-        description,
         content,
         updatedAt: new Date(),
       });

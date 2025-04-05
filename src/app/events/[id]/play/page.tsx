@@ -1,13 +1,12 @@
 'use client';
 
 import { useParams, useSearchParams } from 'next/navigation';
+import { sampleScripts } from '@/lib/scripts';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Map from '@/components/Map';
 import Camera from '@/components/Camera';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 
 interface Task {
   id: string;
@@ -29,28 +28,11 @@ interface Task {
   errorMessage?: string;
 }
 
-interface Event {
-  id: string;
-  title: string;
-  description: string;
-  tasks: Task[];
-  difficulty: 'easy' | 'medium' | 'hard';
-  duration: number;
-  maxPlayers: number;
-  imageUrl: string;
-  rating: number;
-  reviewCount: number;
-  isNew: boolean;
-  isPopular: boolean;
-  tags: string[];
-  createdAt: Date;
-}
-
 export default function PlayPage() {
   const { id } = useParams();
   const searchParams = useSearchParams();
   const { user } = useAuth();
-  const [event, setEvent] = useState<Event | null>(null);
+  const script = sampleScripts.find(s => s.id === id);
   const mode = searchParams.get('mode');
   const roomCode = searchParams.get('room');
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -60,36 +42,29 @@ export default function PlayPage() {
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [taskError, setTaskError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const MAX_DISTANCE = 1000;
+  const MAX_DISTANCE = 1000; // 最大允許距離（米）
 
   useEffect(() => {
-    const fetchEvent = async () => {
-      if (!id) return;
-      
-      try {
-        const eventRef = doc(db, 'events', id as string);
-        const eventDoc = await getDoc(eventRef);
-        
-        if (eventDoc.exists()) {
-          const eventData = eventDoc.data() as Event;
-          setEvent(eventData);
-          setTasks(eventData.tasks.map(task => ({
-            ...task,
-            isUnlocked: task.id === eventData.tasks[0].id
-          })));
-        }
-      } catch (error) {
-        console.error('獲取劇本失敗:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    if (script) {
+      // 初始化任務
+      const initialTasks = script.locations.map((location, index) => ({
+        id: `task-${index + 1}`,
+        title: `任務 ${index + 1}`,
+        description: `前往 ${location.name} 完成任務`,
+        location: {
+          name: location.name,
+          address: location.address,
+          coordinates: {
+            lat: location.coordinates?.latitude || 22.2783, // 使用預設值
+            lng: location.coordinates?.longitude || 114.1747
+          }
+        },
+        isCompleted: false,
+        isUnlocked: index === 0 // 第一個任務預設解鎖
+      }));
+      setTasks(initialTasks);
+    }
 
-    fetchEvent();
-  }, [id]);
-
-  useEffect(() => {
     // 獲取當前位置
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -131,7 +106,7 @@ export default function PlayPage() {
         navigator.geolocation.clearWatch(watchId);
       };
     }
-  }, []);
+  }, [script]);
 
   const isValidCoordinates = (lat: number, lng: number): boolean => {
     return (
@@ -281,15 +256,7 @@ export default function PlayPage() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
-      </div>
-    );
-  }
-
-  if (!event) {
+  if (!script) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

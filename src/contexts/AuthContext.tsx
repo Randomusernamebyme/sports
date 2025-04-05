@@ -1,46 +1,31 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import {
   User,
-  UserCredential,
   createUserWithEmailAndPassword,
-  signInWithEmailAndPassword as firebaseSignInWithEmailAndPassword,
-  signInWithPopup,
-  GoogleAuthProvider,
-  signOut as firebaseSignOut,
+  signInWithEmailAndPassword,
+  signOut,
   onAuthStateChanged,
-  updateProfile as firebaseUpdateProfile,
+  GoogleAuthProvider,
+  signInWithPopup,
   PhoneAuthProvider,
-  RecaptchaVerifier,
   signInWithPhoneNumber,
-  PhoneAuthCredential,
-  linkWithCredential,
-  unlink,
-  updatePassword as firebaseUpdatePassword,
-  deleteUser,
-  EmailAuthProvider,
+  RecaptchaVerifier,
   signInWithCredential,
+  UserCredential
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signUp: (email: string, password: string) => Promise<void>;
-  signIn: (email: string, password: string) => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
-  signInWithPhone: (phoneNumber: string) => Promise<string>;
-  verifyPhoneCode: (verificationId: string, code: string) => Promise<void>;
-  signOut: () => Promise<void>;
-  updateProfile: (data: { displayName?: string; photoURL?: string }) => Promise<void>;
-  linkPhoneNumber: (phoneNumber: string) => Promise<string>;
-  verifyPhoneLinkCode: (verificationId: string, code: string) => Promise<void>;
-  linkEmail: (email: string, password: string) => Promise<void>;
-  updatePassword: (newPassword: string) => Promise<void>;
-  deleteAccount: () => Promise<void>;
-  unlinkProvider: (providerId: string) => Promise<void>;
+  signUp: (email: string, password: string) => Promise<UserCredential>;
+  signIn: (email: string, password: string) => Promise<UserCredential>;
+  signInWithGoogle: () => Promise<UserCredential>;
+  signInWithPhone: (phoneNumber: string) => Promise<any>;
+  verifyPhoneCode: (verificationId: string, code: string) => Promise<UserCredential>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -48,7 +33,6 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -56,134 +40,213 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      // 清理 reCAPTCHA
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+        window.recaptchaVerifier = null;
+      }
+      unsubscribe();
+    };
   }, []);
+
+  const setupRecaptcha = () => {
+    // 如果已存在，先清理
+    if (window.recaptchaVerifier) {
+      window.recaptchaVerifier.clear();
+      window.recaptchaVerifier = null;
+    }
+
+    // 確保容器存在
+    const container = document.getElementById('recaptcha-container');
+    if (!container) {
+      throw new Error('reCAPTCHA container not found');
+    }
+
+    // 創建新的 reCAPTCHA
+    window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      size: 'invisible',
+      callback: () => {
+        console.log('reCAPTCHA solved');
+      },
+      'expired-callback': () => {
+        console.log('reCAPTCHA expired');
+        if (window.recaptchaVerifier) {
+          window.recaptchaVerifier.clear();
+          window.recaptchaVerifier = null;
+        }
+      }
+    });
+
+    // 立即渲染 reCAPTCHA
+    window.recaptchaVerifier.render().then((widgetId) => {
+      console.log('reCAPTCHA rendered with widget ID:', widgetId);
+    }).catch((error) => {
+      console.error('reCAPTCHA render error:', error);
+    });
+
+    return window.recaptchaVerifier;
+  };
+
+  const formatPhoneNumber = (phoneNumber: string) => {
+    // 移除所有非數字字符
+    const cleaned = phoneNumber.replace(/\D/g, '');
+    
+    // 驗證號碼長度
+    if (cleaned.length !== 8) {
+      throw new Error('手機號碼必須為8位數字');
+    }
+    
+    // 返回格式化的號碼，確保使用國際格式
+    return `+852${cleaned}`;
+  };
 
   const signUp = async (email: string, password: string) => {
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      await firebaseUpdateProfile(userCredential.user, { displayName: email.split('@')[0] });
-      router.replace('/');
+      // 創建用戶
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      
+      // 確保用戶被正確設置
+      if (result.user) {
+        setUser(result.user);
+      }
+      
+      return result;
     } catch (error: any) {
-      throw new Error(error.message);
+      console.error('註冊錯誤:', error.message);
+      
+      // 處理特定錯誤
+      if (error.code === 'auth/email-already-in-use') {
+        throw new Error('此電子郵件已被使用');
+      } else if (error.code === 'auth/invalid-email') {
+        throw new Error('無效的電子郵件格式');
+      } else if (error.code === 'auth/weak-password') {
+        throw new Error('密碼強度不足');
+      } else {
+        throw new Error('註冊失敗，請稍後再試');
+      }
     }
   };
 
   const signIn = async (email: string, password: string) => {
     try {
-      await firebaseSignInWithEmailAndPassword(auth, email, password);
-      router.replace('/');
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      
+      // 確保用戶被正確設置
+      if (result.user) {
+        setUser(result.user);
+      }
+      
+      return result;
     } catch (error: any) {
-      throw new Error(error.message);
+      console.error('登入錯誤:', error.message);
+      
+      // 處理特定錯誤
+      if (error.code === 'auth/user-not-found') {
+        throw new Error('找不到此用戶');
+      } else if (error.code === 'auth/wrong-password') {
+        throw new Error('密碼錯誤');
+      } else if (error.code === 'auth/invalid-email') {
+        throw new Error('無效的電子郵件格式');
+      } else {
+        throw new Error('登入失敗，請稍後再試');
+      }
     }
   };
 
   const signInWithGoogle = async () => {
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      router.replace('/');
+      const result = await signInWithPopup(auth, provider);
+      
+      // 確保用戶被正確設置
+      if (result.user) {
+        setUser(result.user);
+      }
+      
+      return result;
     } catch (error: any) {
-      throw new Error(error.message);
+      console.error('Google 登入錯誤:', error.message);
+      throw error;
     }
   };
 
   const signInWithPhone = async (phoneNumber: string) => {
     try {
-      const appVerifier = window.recaptchaVerifier;
-      if (!appVerifier) throw new Error('reCAPTCHA not initialized');
-      const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
-      return confirmationResult.verificationId;
+      const formattedPhone = formatPhoneNumber(phoneNumber);
+      console.log('Formatted phone number:', formattedPhone);
+      
+      // 確保 reCAPTCHA 已經設置
+      const recaptchaVerifier = setupRecaptcha();
+      
+      // 等待一小段時間確保 reCAPTCHA 完全初始化
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // 檢查 reCAPTCHA 是否已經解決
+      if (!window.recaptchaVerifier) {
+        throw new Error('reCAPTCHA not initialized');
+      }
+
+      const confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifier);
+      return confirmationResult;
     } catch (error: any) {
-      throw new Error(error.message);
+      console.error('電話登入錯誤:', error.message);
+      
+      // 處理特定錯誤
+      if (error.code === 'auth/too-many-requests') {
+        throw new Error('請求次數過多，請稍後再試');
+      } else if (error.code === 'auth/invalid-phone-number') {
+        throw new Error('無效的手機號碼格式');
+      } else if (error.code === 'auth/quota-exceeded') {
+        throw new Error('已超過每日驗證碼配額，請稍後再試');
+      } else if (error.code === 'auth/user-disabled') {
+        throw new Error('此帳號已被停用');
+      } else {
+        throw new Error('發送驗證碼失敗，請稍後再試');
+      }
+    } finally {
+      // 如果發生錯誤，清除 reCAPTCHA
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+        window.recaptchaVerifier = null;
+      }
     }
   };
 
   const verifyPhoneCode = async (verificationId: string, code: string) => {
     try {
       const credential = PhoneAuthProvider.credential(verificationId, code);
-      await signInWithCredential(auth, credential);
-      router.replace('/');
+      const result = await signInWithCredential(auth, credential);
+      
+      // 確保用戶被正確設置
+      if (result.user) {
+        setUser(result.user);
+      }
+      
+      return result;
     } catch (error: any) {
-      throw new Error(error.message);
+      console.error('驗證碼錯誤:', error.message);
+      
+      // 處理特定錯誤
+      if (error.code === 'auth/invalid-verification-code') {
+        throw new Error('無效的驗證碼');
+      } else if (error.code === 'auth/code-expired') {
+        throw new Error('驗證碼已過期，請重新發送');
+      } else if (error.code === 'auth/too-many-requests') {
+        throw new Error('請求次數過多，請稍後再試');
+      } else {
+        throw new Error('驗證失敗，請稍後再試');
+      }
     }
   };
 
-  const signOut = async () => {
+  const logout = async () => {
     try {
-      await firebaseSignOut(auth);
-      router.replace('/auth/login');
+      await signOut(auth);
+      setUser(null);
     } catch (error: any) {
-      throw new Error(error.message);
-    }
-  };
-
-  const updateProfile = async (data: { displayName?: string; photoURL?: string }) => {
-    if (!auth.currentUser) throw new Error('No user logged in');
-    try {
-      await firebaseUpdateProfile(auth.currentUser, data);
-    } catch (error: any) {
-      throw new Error(error.message);
-    }
-  };
-
-  const linkPhoneNumber = async (phoneNumber: string) => {
-    if (!auth.currentUser) throw new Error('No user logged in');
-    try {
-      const appVerifier = window.recaptchaVerifier;
-      if (!appVerifier) throw new Error('reCAPTCHA not initialized');
-      const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
-      return confirmationResult.verificationId;
-    } catch (error: any) {
-      throw new Error(error.message);
-    }
-  };
-
-  const verifyPhoneLinkCode = async (verificationId: string, code: string) => {
-    if (!auth.currentUser) throw new Error('No user logged in');
-    try {
-      const credential = PhoneAuthProvider.credential(verificationId, code);
-      await linkWithCredential(auth.currentUser, credential);
-    } catch (error: any) {
-      throw new Error(error.message);
-    }
-  };
-
-  const linkEmail = async (email: string, password: string) => {
-    if (!auth.currentUser) throw new Error('No user logged in');
-    try {
-      const credential = EmailAuthProvider.credential(email, password);
-      await linkWithCredential(auth.currentUser, credential);
-    } catch (error: any) {
-      throw new Error(error.message);
-    }
-  };
-
-  const updatePassword = async (newPassword: string) => {
-    if (!auth.currentUser) throw new Error('No user logged in');
-    try {
-      await firebaseUpdatePassword(auth.currentUser, newPassword);
-    } catch (error: any) {
-      throw new Error(error.message);
-    }
-  };
-
-  const deleteAccount = async () => {
-    if (!auth.currentUser) throw new Error('No user logged in');
-    try {
-      await deleteUser(auth.currentUser);
-      router.replace('/auth/login');
-    } catch (error: any) {
-      throw new Error(error.message);
-    }
-  };
-
-  const unlinkProvider = async (providerId: string) => {
-    if (!auth.currentUser) throw new Error('No user logged in');
-    try {
-      await unlink(auth.currentUser, providerId);
-    } catch (error: any) {
-      throw new Error(error.message);
+      console.error('登出錯誤:', error.message);
+      throw error;
     }
   };
 
@@ -195,19 +258,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signInWithGoogle,
     signInWithPhone,
     verifyPhoneCode,
-    signOut,
-    updateProfile,
-    linkPhoneNumber,
-    verifyPhoneLinkCode,
-    linkEmail,
-    updatePassword,
-    deleteAccount,
-    unlinkProvider,
+    logout
   };
 
   return (
     <AuthContext.Provider value={value}>
-      {children}
+      {!loading && children}
     </AuthContext.Provider>
   );
 }

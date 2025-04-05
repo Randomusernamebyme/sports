@@ -47,8 +47,8 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const id = await signInWithPhone(phoneNumber);
-      setVerificationId(id);
+      const result = await signInWithPhone(phoneNumber);
+      setVerificationId(result.verificationId);
       setIsVerifying(true);
       setError('');
     } catch (err: any) {

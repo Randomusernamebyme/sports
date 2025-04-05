@@ -1,18 +1,38 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
+import Navbar from '@/components/Navbar'
 import { AuthProvider } from '@/contexts/AuthContext'
-import { Toaster } from 'react-hot-toast'
+import BottomNav from '@/components/BottomNav'
 
-const inter = Inter({ 
-  subsets: ['latin'],
-  display: 'swap',
-  preload: true
-})
+const inter = Inter({ subsets: ['latin'] })
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: '#4F46E5',
+}
 
 export const metadata: Metadata = {
   title: '城市尋寶',
-  description: '探索城市，解開謎題，完成任務',
+  description: '探索城市，解開謎題，尋找寶藏！',
+  icons: {
+    icon: [
+      { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+  },
+  manifest: '/manifest.json',
+  other: {
+    'mobile-web-app-capable': 'yes',
+    'apple-mobile-web-app-capable': 'yes',
+    'apple-mobile-web-app-status-bar-style': 'default',
+    'apple-mobile-web-app-title': '城市尋寶',
+  },
 }
 
 export default function RootLayout({
@@ -21,12 +41,14 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="zh-TW" suppressHydrationWarning>
-      <body className={inter.className} suppressHydrationWarning>
+    <html lang="zh-TW">
+      <body className={inter.className}>
         <AuthProvider>
-          {children}
-          <Toaster position="top-center" />
-          <div id="recaptcha-container" className="fixed bottom-0 left-0 w-full h-0 overflow-hidden" />
+          <Navbar />
+          <main className="pb-16 md:pb-0">
+            {children}
+          </main>
+          <BottomNav />
         </AuthProvider>
       </body>
     </html>

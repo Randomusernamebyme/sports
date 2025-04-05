@@ -10,11 +10,9 @@ import {
   query,
   where,
   onSnapshot,
-  arrayUnion,
-  arrayRemove,
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { Room, User, RoomMember } from '@/types';
+import { Room, User } from '@/types';
 import { useAuth } from './useAuth';
 
 interface RoomState {
@@ -83,26 +81,20 @@ export const useRoom = () => {
 
     try {
       setState((prev) => ({ ...prev, loading: true, error: null }));
-      const roomData = {
+      const newRoom: Room = {
         id: '',
         name,
         description,
         ownerId: user.id,
-        members: [{
-          id: user.id,
-          name: user.displayName || '',
-          avatar: user.photoURL || undefined,
-          isReady: false,
-          isHost: true
-        }],
+        members: [user.id],
         createdAt: new Date(),
         updatedAt: new Date(),
       };
 
       const docRef = doc(collection(db, 'rooms'));
-      await setDoc(docRef, roomData);
-      roomData.id = docRef.id;
-      return roomData;
+      await setDoc(docRef, newRoom);
+      newRoom.id = docRef.id;
+      return newRoom;
     } catch (error: any) {
       setState((prev) => ({
         ...prev,
@@ -120,21 +112,18 @@ export const useRoom = () => {
       setState((prev) => ({ ...prev, loading: true, error: null }));
       const roomRef = doc(db, 'rooms', roomId);
       const roomDoc = await getDoc(roomRef);
+
       if (!roomDoc.exists()) {
         throw new Error('房間不存在');
       }
 
       const room = roomDoc.data() as Room;
-      const member: RoomMember = {
-        id: user.id,
-        name: user.displayName || '',
-        avatar: user.photoURL || undefined,
-        isReady: false,
-        isHost: false
-      };
+      if (room.members.includes(user.id)) {
+        throw new Error('你已經是房間成員');
+      }
 
       await updateDoc(roomRef, {
-        members: arrayUnion(member),
+        members: [...room.members, user.id],
         updatedAt: new Date(),
       });
 
@@ -156,25 +145,27 @@ export const useRoom = () => {
       setState((prev) => ({ ...prev, loading: true, error: null }));
       const roomRef = doc(db, 'rooms', roomId);
       const roomDoc = await getDoc(roomRef);
+
       if (!roomDoc.exists()) {
         throw new Error('房間不存在');
       }
 
       const room = roomDoc.data() as Room;
-      const member: RoomMember = {
-        id: user.id,
-        name: user.displayName || '',
-        avatar: user.photoURL || undefined,
-        isReady: false,
-        isHost: false
-      };
+      if (room.ownerId === user.id) {
+        throw new Error('房主不能離開房間');
+      }
 
       await updateDoc(roomRef, {
-        members: arrayRemove(member),
+        members: room.members.filter((id) => id !== user.id),
         updatedAt: new Date(),
       });
 
-      return room;
+      if (state.currentRoom?.id === roomId) {
+        setState((prev) => ({
+          ...prev,
+          currentRoom: null,
+        }));
+      }
     } catch (error: any) {
       setState((prev) => ({
         ...prev,
