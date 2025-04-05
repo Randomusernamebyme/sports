@@ -34,7 +34,7 @@ interface AuthContextType {
   signInWithPhone: (phoneNumber: string) => Promise<string>;
   verifyPhoneCode: (verificationId: string, code: string) => Promise<void>;
   signOut: () => Promise<void>;
-  updateProfile: (displayName: string) => Promise<void>;
+  updateProfile: (data: { displayName?: string; photoURL?: string }) => Promise<void>;
   linkPhoneNumber: (phoneNumber: string) => Promise<string>;
   verifyPhoneLinkCode: (verificationId: string, code: string) => Promise<void>;
   linkEmail: (email: string, password: string) => Promise<void>;
@@ -118,10 +118,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const updateProfile = async (displayName: string) => {
+  const updateProfile = async (data: { displayName?: string; photoURL?: string }) => {
     if (!auth.currentUser) throw new Error('No user logged in');
     try {
-      await firebaseUpdateProfile(auth.currentUser, { displayName });
+      await firebaseUpdateProfile(auth.currentUser, data);
     } catch (error: any) {
       throw new Error(error.message);
     }
