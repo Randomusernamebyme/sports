@@ -39,7 +39,8 @@ export default function EventsPage() {
         const eventsData = querySnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate()
+          createdAt: doc.data().createdAt?.toDate(),
+          updatedAt: doc.data().updatedAt?.toDate()
         })) as Event[];
         
         setEvents(eventsData);
@@ -52,9 +53,10 @@ export default function EventsPage() {
     };
 
     fetchEvents();
-  }, [user, loading]);
+  }, [user, loading, router]);
 
-  const filteredEvents = events.filter((event) => {
+  // 篩選事件
+  const filteredEvents = events.filter(event => {
     const matchesDifficulty = selectedDifficulty === 'all' || event.difficulty === selectedDifficulty;
     const matchesSearch = event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          event.description.toLowerCase().includes(searchQuery.toLowerCase());
@@ -71,11 +73,8 @@ export default function EventsPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900">出錯了</h1>
-          <p className="mt-2 text-gray-600">{error}</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-red-500">{error}</div>
       </div>
     );
   }
@@ -108,38 +107,40 @@ export default function EventsPage() {
         </div>
 
         {/* 劇本列表 */}
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredEvents.map((event) => (
-            <Link key={event.id} href={`/events/${event.id}`}>
-              <div className="bg-white rounded-lg shadow overflow-hidden hover:shadow-md transition-shadow">
-                <div className="relative h-48">
-                  <Image
-                    src={event.imageUrl || '/images/default-event.jpg'}
-                    alt={event.title}
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-                <div className="p-4">
-                  <h3 className="font-medium text-gray-900">{event.title}</h3>
-                  <p className="mt-1 text-sm text-gray-500">{event.description}</p>
-                  <div className="mt-4 flex items-center justify-between">
-                    <div className="flex items-center text-sm text-gray-500">
-                      <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                      </svg>
+            <div key={event.id} className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="aspect-w-16 aspect-h-9">
+                <img
+                  src={event.imageUrl || '/images/placeholder.jpg'}
+                  alt={event.title}
+                  className="object-cover w-full h-full"
+                />
+              </div>
+              <div className="p-4">
+                <h2 className="text-xl font-semibold text-gray-900">{event.title}</h2>
+                <p className="mt-2 text-gray-600 line-clamp-2">{event.description}</p>
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <span className="text-sm text-gray-500">
                       {event.maxPlayers} 人
-                    </div>
-                    <div className="flex items-center text-sm text-gray-500">
-                      <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+                    </span>
+                    <span className="text-sm text-gray-500">
                       {event.duration} 分鐘
-                    </div>
+                    </span>
+                    <span className="text-sm text-gray-500">
+                      ${event.price}
+                    </span>
                   </div>
+                  <button
+                    onClick={() => router.push(`/events/${event.id}`)}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                  >
+                    查看詳情
+                  </button>
                 </div>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       </div>

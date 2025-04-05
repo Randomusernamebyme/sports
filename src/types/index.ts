@@ -61,19 +61,6 @@ export interface RoomMember {
   isHost: boolean;
 }
 
-export interface Script {
-  id: string;
-  title: string;
-  description: string;
-  difficulty: 'easy' | 'medium' | 'hard';
-  duration: number; // 預計完成時間（分鐘）
-  price: number;
-  coverImage?: string;
-  locations: Location[];
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 export interface Location {
   id: string;
   name: string;
@@ -83,17 +70,29 @@ export interface Location {
     latitude: number;
     longitude: number;
   };
-  clues: Clue[];
-  order: number; // 地點的順序
+  clues: string[];
+  order: number;
 }
 
-export interface Clue {
+export interface Event {
   id: string;
-  content: string;
-  type: 'text' | 'image' | 'riddle' | 'puzzle';
-  hint?: string;
-  answer: string;
-  points: number; // 解開線索可獲得的積分
+  title: string;
+  description: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  duration: number;
+  maxPlayers: number;
+  price: number;
+  imageUrl?: string;
+  rating?: number;
+  reviewCount?: number;
+  isNew?: boolean;
+  isPopular?: boolean;
+  tags?: string[];
+  locations: Location[];
+  tasks?: Task[];
+  authorId: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface GameSession {
@@ -107,21 +106,4 @@ export interface GameSession {
   endTime?: Date;
   completedLocations: string[]; // 已完成的地點 ID
   hintsUsed: number;
-}
-
-export interface Event {
-  id: string;
-  title: string;
-  description: string;
-  difficulty: 'easy' | 'medium' | 'hard';
-  duration: number;
-  maxPlayers: number;
-  imageUrl: string;
-  rating: number;
-  reviewCount: number;
-  isNew: boolean;
-  isPopular: boolean;
-  tags: string[];
-  createdAt: Date;
-  tasks?: Task[];
 } 
