@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   collection,
   doc,
@@ -19,6 +20,7 @@ export const useGameProgress = (
   scriptId?: string,
   onGameComplete?: (sessionId: string, score: number) => void
 ) => {
+  const router = useRouter();
   const { user } = useAuth();
   const [gameSession, setGameSession] = useState<GameSession | null>(null);
   const [loading, setLoading] = useState(true);
@@ -241,20 +243,48 @@ export const useGameProgress = (
         return;
       }
 
+      // 更新任務狀態
       const updatedTaskStatus = {
         ...session.taskStatus,
         [taskId]: status,
       };
 
-      await updateDoc(sessionRef, {
+      // 檢查是否所有任務都已完成
+      const allTasksCompleted = Object.values(updatedTaskStatus).every(
+        status => status === 'completed'
+      );
+
+      // 準備更新數據
+      const updateData: Partial<GameSession> = {
         taskStatus: updatedTaskStatus,
         lastUpdated: new Date(),
+      };
+
+      // 如果所有任務完成，更新遊戲狀態
+      if (allTasksCompleted) {
+        updateData.status = 'completed';
+        updateData.endTime = new Date();
+      }
+
+      // 使用事務來確保原子性更新
+      await runTransaction(db, async (transaction) => {
+        const currentDoc = await transaction.get(sessionRef);
+        if (!currentDoc.exists()) {
+          throw new Error('遊戲進度不存在');
+        }
+        transaction.update(sessionRef, updateData);
       });
 
+      // 更新本地狀態
       setGameSession(prev => prev ? {
         ...prev,
-        taskStatus: updatedTaskStatus,
+        ...updateData,
       } : null);
+
+      // 如果所有任務完成，觸發完成回調
+      if (allTasksCompleted) {
+        onGameComplete?.(sessionId, session.score);
+      }
     } catch (err: any) {
       console.error('更新任務狀態失敗:', err);
       setError('更新任務狀態時發生錯誤，請稍後重試');
@@ -286,6 +316,12 @@ export const useGameProgress = (
     }
   };
 
+  // 處理遊戲完成
+  const handleGameComplete = (sessionId: string, score: number) => {
+    onGameComplete?.(sessionId, score);
+    router.push(`/events/${scriptId}/complete?id=${sessionId}`);
+  };
+
   return {
     gameSession,
     loading,
@@ -294,5 +330,6 @@ export const useGameProgress = (
     updateGameProgress,
     updateTaskStatus,
     completeGameSession,
+    handleGameComplete,
   };
 }; 
