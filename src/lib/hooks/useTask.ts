@@ -97,7 +97,8 @@ export const useTask = () => {
         updatedAt: new Date(),
       };
 
-      const docRef = await setDoc(doc(collection(db, 'tasks')), newTask);
+      const docRef = doc(collection(db, 'tasks'));
+      await setDoc(docRef, newTask);
       newTask.id = docRef.id;
       return newTask;
     } catch (error: any) {
