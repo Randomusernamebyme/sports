@@ -1,4 +1,4 @@
-import { ScriptCard } from '@/components/ui/ScriptCard';
+import { ScriptCardWrapper } from '@/components/ui/ScriptCardWrapper';
 import { sampleScripts } from '@/lib/scripts';
 import Link from 'next/link';
 import { Navbar } from '@/components/ui/Navbar';
@@ -67,9 +67,7 @@ export default function Home() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {sampleScripts.map((script) => (
-                <div key={script.id} className="group" onClick={() => alert('請先登入以查看劇本詳情')}>
-                  <ScriptCard script={script} />
-                </div>
+                <ScriptCardWrapper key={script.id} script={script} />
               ))}
             </div>
             <div className="text-center mt-12">
