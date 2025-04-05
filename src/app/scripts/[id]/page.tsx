@@ -1,11 +1,24 @@
+'use client';
+
 import { sampleScripts } from '@/lib/scripts';
 import { notFound } from 'next/navigation';
+import { GoogleMap, LoadScript, Marker } from '@react-google-maps/api';
 
 interface ScriptPageProps {
   params: {
     id: string;
   };
 }
+
+const mapContainerStyle = {
+  width: '100%',
+  height: '400px'
+};
+
+const center = {
+  lat: 22.2783,
+  lng: 114.1827
+};
 
 export default function ScriptPage({ params }: ScriptPageProps) {
   const script = sampleScripts.find((s) => s.id === params.id);
@@ -41,16 +54,10 @@ export default function ScriptPage({ params }: ScriptPageProps) {
           <div className="p-6">
             <p className="text-gray-600 mb-6">{script.description}</p>
             
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="font-semibold mb-2">遊戲資訊</h3>
-                <p>⏱️ 預計時長：{script.duration} 分鐘</p>
-                <p>📍 地點數量：{script.locations.length} 個</p>
-              </div>
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="font-semibold mb-2">價格</h3>
-                <p className="text-2xl font-bold">NT$ {script.price}</p>
-              </div>
+            <div className="bg-gray-50 p-4 rounded-lg mb-6">
+              <h3 className="font-semibold mb-2">遊戲資訊</h3>
+              <p>⏱️ 預計時長：{script.duration} 分鐘</p>
+              <p>📍 地點數量：{script.locations.length} 個</p>
             </div>
 
             <div className="mb-6">
@@ -66,7 +73,30 @@ export default function ScriptPage({ params }: ScriptPageProps) {
               </div>
             </div>
 
-            <button className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold mb-4">地圖</h2>
+              <LoadScript googleMapsApiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''}>
+                <GoogleMap
+                  mapContainerStyle={mapContainerStyle}
+                  center={center}
+                  zoom={14}
+                >
+                  {script.locations.map((location) => (
+                    <Marker
+                      key={location.id}
+                      position={{
+                        lat: location.coordinates.latitude,
+                        lng: location.coordinates.longitude
+                      }}
+                      title={location.name}
+                      label={location.name}
+                    />
+                  ))}
+                </GoogleMap>
+              </LoadScript>
+            </div>
+
+            <button className="w-full bg-primary-600 text-white py-3 px-6 rounded-lg hover:bg-primary-700 transition-colors">
               開始遊戲
             </button>
           </div>

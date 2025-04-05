@@ -1,16 +1,12 @@
 import { ScriptCardWrapper } from '@/components/ui/ScriptCardWrapper';
 import { sampleScripts } from '@/lib/scripts';
 import Link from 'next/link';
-import { Navbar } from '@/components/ui/Navbar';
 import { Button } from '@/components/ui/Button';
 import Image from 'next/image';
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
-      {/* Navbar */}
-      <Navbar />
-      
       {/* Hero Section */}
       <section className="relative py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
