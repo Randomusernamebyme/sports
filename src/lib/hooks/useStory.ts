@@ -92,7 +92,8 @@ export const useStory = () => {
         updatedAt: new Date(),
       };
 
-      const docRef = await setDoc(doc(collection(db, 'stories')), newStory);
+      const docRef = doc(collection(db, 'stories'));
+      await setDoc(docRef, newStory);
       newStory.id = docRef.id;
       return newStory;
     } catch (error: any) {
