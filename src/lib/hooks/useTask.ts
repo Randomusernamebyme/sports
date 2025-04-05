@@ -87,6 +87,16 @@ export const useTask = () => {
         id: '',
         title,
         description: description || '',
+        location: {
+          name: '',
+          address: '',
+          coordinates: {
+            lat: 0,
+            lng: 0
+          }
+        },
+        isCompleted: false,
+        isUnlocked: true,
         status: 'pending',
         assignedTo: assignedTo || user.id,
         createdAt: new Date(),
