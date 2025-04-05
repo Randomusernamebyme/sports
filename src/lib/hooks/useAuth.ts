@@ -39,17 +39,18 @@ export const useAuth = () => {
           });
         } else {
           // 如果用戶資料不存在，創建新用戶資料
-          const newUser: UserType = {
+          const userData = {
             id: user.uid,
             email: user.email || '',
-            displayName: user.displayName || undefined,
-            photoURL: user.photoURL || undefined,
+            displayName: user.displayName,
+            photoURL: user.photoURL || null,
+            phoneNumber: user.phoneNumber || null,
             createdAt: new Date(),
             lastLoginAt: new Date(),
           };
-          await setDoc(doc(db, 'users', user.uid), newUser);
+          await setDoc(doc(db, 'users', user.uid), userData);
           setState({
-            user: newUser,
+            user: userData as UserType,
             loading: false,
             error: null,
           });
@@ -84,16 +85,17 @@ export const useAuth = () => {
     try {
       setState((prev) => ({ ...prev, loading: true, error: null }));
       const { user } = await createUserWithEmailAndPassword(auth, email, password);
-      const newUser: UserType = {
+      const userData = {
         id: user.uid,
         email: user.email || '',
         displayName,
-        photoURL: user.photoURL || undefined,
+        photoURL: user.photoURL || null,
+        phoneNumber: user.phoneNumber || null,
         createdAt: new Date(),
         lastLoginAt: new Date(),
       };
-      await setDoc(doc(db, 'users', user.uid), newUser);
-      return newUser;
+      await setDoc(doc(db, 'users', user.uid), userData);
+      return userData;
     } catch (error: any) {
       setState((prev) => ({
         ...prev,
