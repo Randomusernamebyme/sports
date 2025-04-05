@@ -200,14 +200,14 @@ export default function PlayPage() {
 
   const handlePhotoCapture = (photo: string) => {
     if (selectedTask) {
+      // 只設置照片，不立即標記為完成
       setTasks(tasks.map(task =>
         task.id === selectedTask.id
-          ? { ...task, photo, isCompleted: true }
+          ? { ...task, photo }
           : task
       ));
-      setSelectedTask(null);
-      setShowCamera(false);
       setCapturedPhoto(photo);
+      setShowCamera(false);
     }
   };
 
@@ -223,28 +223,30 @@ export default function PlayPage() {
         // 模擬後端處理
         await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // 更新任務狀態
-        setTasks(tasks.map(task =>
+        // 更新當前任務狀態
+        const updatedTasks = tasks.map(task =>
           task.id === selectedTask.id
             ? {
                 ...task,
                 isCompleted: true,
-                photo: capturedPhoto,
-                status: 'success'
+                status: 'success' as const,
+                photo: capturedPhoto
               }
             : task
-        ));
+        );
 
-        // 解鎖下一個任務
+        // 找到當前任務的索引
         const currentIndex = tasks.findIndex(t => t.id === selectedTask.id);
+        
+        // 如果不是最後一個任務，解鎖下一個任務
         if (currentIndex < tasks.length - 1) {
-          setTasks(tasks.map((task, index) =>
-            index === currentIndex + 1
-              ? { ...task, isUnlocked: true }
-              : task
-          ));
+          updatedTasks[currentIndex + 1] = {
+            ...updatedTasks[currentIndex + 1],
+            isUnlocked: true
+          };
         }
 
+        setTasks(updatedTasks);
         setSelectedTask(null);
         setCapturedPhoto(null);
       } catch (error) {
