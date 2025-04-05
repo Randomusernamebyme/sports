@@ -5,6 +5,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -17,7 +19,7 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [verificationId, setVerificationId] = useState('');
-  const { signUp, signInWithPhone, verifyPhoneCode, signInWithGoogle } = useAuth();
+  const { signUp, signInWithGoogle } = useAuth();
   const router = useRouter();
 
   const handleEmailRegister = async (e: React.FormEvent) => {
@@ -46,13 +48,79 @@ export default function RegisterPage() {
     setError('');
     setIsLoading(true);
 
+    // 驗證香港手機號碼格式
+    const hkPhoneRegex = /^[5-9]\d{7}$/;
+    if (!hkPhoneRegex.test(phoneNumber)) {
+      setError('請輸入有效的香港手機號碼');
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const result = await signInWithPhone(phoneNumber);
-      setVerificationId(result.verificationId);
+      // 確保手機號碼格式正確（加上香港國際區號）
+      const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+852${phoneNumber}`;
+
+      // 檢查 auth 對象
+      if (!auth) {
+        throw new Error('Firebase Auth 未初始化');
+      }
+
+      console.log('開始初始化 reCAPTCHA...');
+
+      // 清除之前的 reCAPTCHA 實例（如果存在）
+      if (window.recaptchaVerifier) {
+        try {
+          await window.recaptchaVerifier.clear();
+        } catch (clearErr) {
+          console.error('清除 reCAPTCHA 時出錯:', clearErr);
+        }
+        window.recaptchaVerifier = null;
+      }
+
+      // 使用更簡單的方式初始化 reCAPTCHA
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'invisible'
+      });
+
+      // 發送驗證碼
+      const confirmationResult = await signInWithPhoneNumber(
+        auth,
+        formattedPhone,
+        window.recaptchaVerifier
+      );
+
+      console.log('驗證碼發送成功');
+
+      // 保存 confirmationResult
+      window.confirmationResult = confirmationResult;
       setIsVerifying(true);
       setError('');
     } catch (err: any) {
-      setError(err.message);
+      console.error('手機驗證錯誤:', err);
+      
+      if (err.code === 'auth/invalid-phone-number') {
+        setError('無效的手機號碼格式');
+      } else if (err.code === 'auth/quota-exceeded') {
+        setError('發送次數過多，請稍後再試');
+      } else if (err.code === 'auth/operation-not-allowed') {
+        setError('手機驗證功能未啟用，請聯繫管理員');
+      } else if (err.code === 'auth/invalid-app-credential') {
+        setError('驗證失敗，請重新整理頁面後再試');
+      } else if (err.code === 'auth/captcha-check-failed') {
+        setError('驗證碼驗證失敗，請重試');
+      } else {
+        setError('發送驗證碼失敗，請稍後再試');
+      }
+      
+      // 清理 reCAPTCHA
+      if (window.recaptchaVerifier) {
+        try {
+          await window.recaptchaVerifier.clear();
+        } catch (clearErr) {
+          console.error('清除 reCAPTCHA 時出錯:', clearErr);
+        }
+        window.recaptchaVerifier = null;
+      }
     } finally {
       setIsLoading(false);
     }
@@ -63,11 +131,37 @@ export default function RegisterPage() {
     setError('');
     setIsLoading(true);
 
+    if (!verificationCode) {
+      setError('請輸入驗證碼');
+      setIsLoading(false);
+      return;
+    }
+
+    if (!window.confirmationResult) {
+      setError('驗證會話已過期，請重新發送驗證碼');
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      await verifyPhoneCode(verificationId, verificationCode);
+      // 驗證驗證碼
+      const result = await window.confirmationResult.confirm(verificationCode);
+      
+      if (!result.user) {
+        throw new Error('驗證失敗');
+      }
+
+      console.log('手機號碼驗證成功');
       router.push('/events');
     } catch (err: any) {
-      setError(err.message);
+      console.error('驗證碼確認錯誤:', err);
+      if (err.code === 'auth/invalid-verification-code') {
+        setError('驗證碼無效');
+      } else if (err.code === 'auth/code-expired') {
+        setError('驗證碼已過期，請重新發送');
+      } else {
+        setError(err.message || '驗證失敗');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -112,6 +206,9 @@ export default function RegisterPage() {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+          {/* reCAPTCHA container */}
+          <div id="recaptcha-container" className="hidden"></div>
+
           {!isVerifying ? (
             <>
               <div className="space-y-6">
@@ -271,17 +368,24 @@ export default function RegisterPage() {
                 <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700">
                   手機號碼
                 </label>
-                <div className="mt-1">
+                <div className="mt-1 relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">
+                    +852
+                  </span>
                   <input
                     id="phoneNumber"
                     name="phoneNumber"
                     type="tel"
                     required
+                    placeholder="例如：51234567"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="appearance-none block w-full pl-16 px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                   />
                 </div>
+                <p className="mt-2 text-sm text-gray-500">
+                  請輸入香港手機號碼（8位數字，以5-9開頭）
+                </p>
               </div>
 
               <div>

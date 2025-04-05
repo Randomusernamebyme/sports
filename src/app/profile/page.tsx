@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Image from 'next/image';
 import Link from 'next/link';
+import { RecaptchaVerifier, PhoneAuthProvider, linkWithPhoneNumber } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 
 interface LinkedAccount {
   type: 'email' | 'phone' | 'google';
@@ -17,6 +19,11 @@ export default function ProfilePage() {
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [showPhoneInput, setShowPhoneInput] = useState(false);
+  const [phoneToVerify, setPhoneToVerify] = useState('');
+  const [showVerificationCode, setShowVerificationCode] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [countdown, setCountdown] = useState(0);
   const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -77,16 +84,171 @@ export default function ProfilePage() {
     setSuccessMessage('');
 
     try {
-      // 這裡應該調用相應的驗證流程
       if (type === 'email') {
         // 發送郵箱驗證郵件
+        setSuccessMessage('已發送驗證郵件');
       } else {
-        // 發送手機驗證碼
+        // 顯示手機號碼輸入框
+        setShowPhoneInput(true);
       }
-      setSuccessMessage(`已發送驗證${type === 'email' ? '郵件' : '碼'}`);
     } catch (err: any) {
       setError(err.message || '操作失敗');
     }
+  };
+
+  const handleSendPhoneVerification = async () => {
+    if (!phoneToVerify) {
+      setError('請輸入手機號碼');
+      return;
+    }
+
+    // 驗證香港手機號碼格式
+    const hkPhoneRegex = /^[5-9]\d{7}$/;
+    if (!hkPhoneRegex.test(phoneToVerify)) {
+      setError('請輸入有效的香港手機號碼');
+      return;
+    }
+
+    try {
+      // 確保手機號碼格式正確（加上香港國際區號）
+      const formattedPhone = phoneToVerify.startsWith('+') ? phoneToVerify : `+852${phoneToVerify}`;
+
+      // 檢查 auth 對象和當前用戶
+      if (!auth || !auth.currentUser) {
+        throw new Error('用戶未登入');
+      }
+
+      console.log('開始初始化 reCAPTCHA...');
+
+      // 清除之前的 reCAPTCHA 實例（如果存在）
+      if (window.recaptchaVerifier) {
+        try {
+          await window.recaptchaVerifier.clear();
+        } catch (clearErr) {
+          console.error('清除 reCAPTCHA 時出錯:', clearErr);
+        }
+        window.recaptchaVerifier = null;
+      }
+
+      // 使用更簡單的方式初始化 reCAPTCHA
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'invisible'
+      });
+
+      // 使用 linkWithPhoneNumber 而不是 signInWithPhoneNumber
+      const confirmationResult = await linkWithPhoneNumber(
+        auth.currentUser,
+        formattedPhone,
+        window.recaptchaVerifier
+      );
+
+      console.log('驗證碼發送成功');
+
+      // 保存 confirmationResult
+      window.confirmationResult = confirmationResult;
+      
+      setSuccessMessage('驗證碼已發送');
+      setShowVerificationCode(true);
+      setCountdown(60);
+      
+      const timer = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (err: any) {
+      console.error('手機驗證錯誤:', err);
+      
+      if (err.code === 'auth/invalid-phone-number') {
+        setError('無效的手機號碼格式');
+      } else if (err.code === 'auth/quota-exceeded') {
+        setError('發送次數過多，請稍後再試');
+      } else if (err.code === 'auth/operation-not-allowed') {
+        setError('手機驗證功能未啟用，請聯繫管理員');
+      } else if (err.code === 'auth/invalid-app-credential') {
+        setError('驗證失敗，請重新整理頁面後再試');
+      } else if (err.code === 'auth/captcha-check-failed') {
+        setError('驗證碼驗證失敗，請重試');
+      } else if (err.code === 'auth/provider-already-linked') {
+        setError('此手機號碼已被關聯到其他賬號');
+      } else if (err.code === 'auth/credential-already-in-use') {
+        setError('此手機號碼已被其他賬號使用');
+      } else {
+        setError('發送驗證碼失敗，請稍後再試');
+      }
+      
+      // 清理 reCAPTCHA
+      if (window.recaptchaVerifier) {
+        try {
+          await window.recaptchaVerifier.clear();
+        } catch (clearErr) {
+          console.error('清除 reCAPTCHA 時出錯:', clearErr);
+        }
+        window.recaptchaVerifier = null;
+      }
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    if (!verificationCode) {
+      setError('請輸入驗證碼');
+      return;
+    }
+
+    if (!window.confirmationResult) {
+      setError('驗證會話已過期，請重新發送驗證碼');
+      return;
+    }
+
+    try {
+      // 驗證驗證碼
+      const result = await window.confirmationResult.confirm(verificationCode);
+      
+      if (!result.user) {
+        throw new Error('驗證失敗');
+      }
+
+      // 驗證成功後更新賬號列表
+      const formattedPhone = phoneToVerify.startsWith('+') ? phoneToVerify : `+852${phoneToVerify}`;
+      setLinkedAccounts(prev => [
+        ...prev,
+        {
+          type: 'phone',
+          value: formattedPhone,
+          isVerified: true
+        }
+      ]);
+      
+      setSuccessMessage('手機號碼驗證成功');
+      setShowPhoneInput(false);
+      setShowVerificationCode(false);
+      setPhoneToVerify('');
+      setVerificationCode('');
+
+      // 清理 reCAPTCHA
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+        window.recaptchaVerifier = null;
+      }
+    } catch (err: any) {
+      console.error('Code verification error:', err);
+      if (err.code === 'auth/invalid-verification-code') {
+        setError('驗證碼無效');
+      } else if (err.code === 'auth/code-expired') {
+        setError('驗證碼已過期，請重新發送');
+      } else {
+        setError(err.message || '驗證失敗');
+      }
+    }
+  };
+
+  const handleResendCode = () => {
+    if (countdown > 0) return;
+    handleSendPhoneVerification();
   };
 
   const handleGoogleLink = async () => {
@@ -136,6 +298,9 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-3xl mx-auto px-4 py-8">
+        {/* reCAPTCHA container */}
+        <div id="recaptcha-container"></div>
+        
         {/* 用戶基本信息 */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <div className="flex items-center justify-between mb-6">
@@ -278,15 +443,97 @@ export default function ProfilePage() {
                 </button>
               )}
               {!linkedAccounts.some(a => a.type === 'phone') && (
-                <button
-                  onClick={() => handleAddAccount('phone')}
-                  className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-                >
-                  <svg className="w-5 h-5 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                  添加手機
-                </button>
+                <>
+                  <button
+                    onClick={() => handleAddAccount('phone')}
+                    className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                  >
+                    <svg className="w-5 h-5 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    添加手機
+                  </button>
+                  {showPhoneInput && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                      <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                        <h3 className="text-lg font-medium mb-4">添加手機號碼</h3>
+                        <div className="mb-4">
+                          <input
+                            type="tel"
+                            value={phoneToVerify}
+                            onChange={(e) => setPhoneToVerify(e.target.value)}
+                            placeholder="請輸入手機號碼（例如：51234567）"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                          />
+                          <p className="mt-1 text-sm text-gray-500">
+                            請輸入香港手機號碼（8位數字，以5-9開頭），無需輸入國際區號
+                          </p>
+                        </div>
+                        {!showVerificationCode ? (
+                          <div className="flex justify-end space-x-3">
+                            <button
+                              onClick={() => {
+                                setShowPhoneInput(false);
+                                setPhoneToVerify('');
+                                setError('');
+                              }}
+                              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                            >
+                              取消
+                            </button>
+                            <button
+                              id="send-code-button"
+                              onClick={handleSendPhoneVerification}
+                              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                            >
+                              發送驗證碼
+                            </button>
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="mb-4">
+                              <input
+                                type="text"
+                                value={verificationCode}
+                                onChange={(e) => setVerificationCode(e.target.value)}
+                                placeholder="請輸入驗證碼"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                              />
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <button
+                                onClick={handleResendCode}
+                                disabled={countdown > 0}
+                                className={`text-sm ${countdown > 0 ? 'text-gray-400' : 'text-indigo-600 hover:text-indigo-700'}`}
+                              >
+                                {countdown > 0 ? `${countdown}秒後可重新發送` : '重新發送驗證碼'}
+                              </button>
+                              <div className="space-x-3">
+                                <button
+                                  onClick={() => {
+                                    setShowPhoneInput(false);
+                                    setPhoneToVerify('');
+                                    setVerificationCode('');
+                                    setError('');
+                                  }}
+                                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                                >
+                                  取消
+                                </button>
+                                <button
+                                  onClick={handleVerifyCode}
+                                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                                >
+                                  驗證
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
               {!linkedAccounts.some(a => a.type === 'google') && (
                 <button
