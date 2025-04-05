@@ -59,8 +59,8 @@ export default function PlayPage() {
               name: location.name,
               address: location.address,
               coordinates: {
-                lat: location.coordinates?.latitude || 22.2783,
-                lng: location.coordinates?.longitude || 114.1747
+                lat: location.coordinates?.latitude || 0,
+                lng: location.coordinates?.longitude || 0
               }
             },
             isCompleted: gameSession.completedLocations.includes(`task-${index + 1}`),
@@ -70,7 +70,7 @@ export default function PlayPage() {
         } else {
           // 如果沒有遊戲進度，創建新的遊戲進度
           try {
-            await createGameSession();
+            const newSession = await createGameSession();
             const initialTasks = script.locations.map((location, index) => ({
               id: `task-${index + 1}`,
               title: `任務 ${index + 1}`,
@@ -79,8 +79,8 @@ export default function PlayPage() {
                 name: location.name,
                 address: location.address,
                 coordinates: {
-                  lat: location.coordinates?.latitude || 22.2783,
-                  lng: location.coordinates?.longitude || 114.1747
+                  lat: location.coordinates?.latitude || 0,
+                  lng: location.coordinates?.longitude || 0
                 }
               },
               isCompleted: false,
@@ -99,44 +99,44 @@ export default function PlayPage() {
 
     // 獲取當前位置
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          if (isValidCoordinates(latitude, longitude)) {
-            setCurrentLocation({
-              lat: latitude,
-              lng: longitude
-            });
-          } else {
-            console.error('無效的座標值');
-            alert('無法獲取有效的位置信息');
-          }
-        },
-        (error) => {
-          console.error('Error getting location:', error);
-          alert('無法獲取位置信息，請確保已開啟位置權限');
-        }
-      );
+      const options = {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 0
+      };
 
-      // 持續追蹤位置
       const watchId = navigator.geolocation.watchPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
-          if (isValidCoordinates(latitude, longitude)) {
-            setCurrentLocation({
-              lat: latitude,
-              lng: longitude
-            });
-          }
+          setCurrentLocation({
+            lat: latitude,
+            lng: longitude
+          });
         },
         (error) => {
-          console.error('Error watching location:', error);
-        }
+          console.error('位置追蹤錯誤:', error);
+          switch(error.code) {
+            case error.PERMISSION_DENIED:
+              alert('請允許位置權限以繼續遊戲');
+              break;
+            case error.POSITION_UNAVAILABLE:
+              alert('無法獲取位置信息，請確保GPS已開啟');
+              break;
+            case error.TIMEOUT:
+              alert('獲取位置超時，請檢查網絡連接');
+              break;
+            default:
+              alert('獲取位置時發生錯誤');
+          }
+        },
+        options
       );
 
       return () => {
         navigator.geolocation.clearWatch(watchId);
       };
+    } else {
+      alert('您的瀏覽器不支持位置服務，無法進行遊戲');
     }
   }, [script, gameSession]);
 

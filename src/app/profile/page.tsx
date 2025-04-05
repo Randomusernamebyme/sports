@@ -104,21 +104,21 @@ export default function ProfilePage() {
   };
 
   const handleSendPhoneVerification = async () => {
-    if (!phoneToVerify) {
+    if (!phoneNumber) {
       setError('請輸入手機號碼');
       return;
     }
 
     // 驗證香港手機號碼格式
     const hkPhoneRegex = /^[5-9]\d{7}$/;
-    if (!hkPhoneRegex.test(phoneToVerify)) {
+    if (!hkPhoneRegex.test(phoneNumber)) {
       setError('請輸入有效的香港手機號碼');
       return;
     }
 
     try {
       // 確保手機號碼格式正確（加上香港國際區號）
-      const formattedPhone = phoneToVerify.startsWith('+') ? phoneToVerify : `+852${phoneToVerify}`;
+      const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+852${phoneNumber}`;
 
       // 檢查 auth 對象和當前用戶
       if (!auth || !auth.currentUser) {
@@ -131,22 +131,42 @@ export default function ProfilePage() {
       if (window.recaptchaVerifier) {
         try {
           await window.recaptchaVerifier.clear();
+          console.log('成功清除舊的 reCAPTCHA');
         } catch (clearErr) {
           console.error('清除 reCAPTCHA 時出錯:', clearErr);
         }
         window.recaptchaVerifier = null;
       }
 
+      // 檢查 recaptcha-container 是否存在
+      const recaptchaContainer = document.getElementById('recaptcha-container');
+      if (!recaptchaContainer) {
+        throw new Error('找不到 reCAPTCHA 容器');
+      }
+
+      console.log('創建新的 reCAPTCHA 實例');
+      
       // 使用更簡單的方式初始化 reCAPTCHA
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        size: 'invisible'
+      const recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'invisible',
+        callback: () => {
+          console.log('reCAPTCHA 驗證成功');
+        },
+        'expired-callback': () => {
+          console.log('reCAPTCHA 已過期');
+          setError('驗證已過期，請重試');
+        }
       });
+
+      window.recaptchaVerifier = recaptchaVerifier;
+
+      console.log('開始發送驗證碼到:', formattedPhone);
 
       // 使用 linkWithPhoneNumber 而不是 signInWithPhoneNumber
       const confirmationResult = await linkWithPhoneNumber(
         auth.currentUser,
         formattedPhone,
-        window.recaptchaVerifier
+        recaptchaVerifier
       );
 
       console.log('驗證碼發送成功');
@@ -155,18 +175,8 @@ export default function ProfilePage() {
       window.confirmationResult = confirmationResult;
       
       setSuccessMessage('驗證碼已發送');
-      setShowVerificationCode(true);
-      setCountdown(60);
+      setIsVerifying(true);
       
-      const timer = setInterval(() => {
-        setCountdown(prev => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
     } catch (err: any) {
       console.error('手機驗證錯誤:', err);
       
@@ -192,6 +202,7 @@ export default function ProfilePage() {
       if (window.recaptchaVerifier) {
         try {
           await window.recaptchaVerifier.clear();
+          console.log('清理 reCAPTCHA 成功');
         } catch (clearErr) {
           console.error('清除 reCAPTCHA 時出錯:', clearErr);
         }
@@ -212,6 +223,9 @@ export default function ProfilePage() {
     }
 
     try {
+      setIsLoading(true);
+      console.log('開始驗證驗證碼');
+
       // 驗證驗證碼
       const result = await window.confirmationResult.confirm(verificationCode);
       
@@ -219,30 +233,26 @@ export default function ProfilePage() {
         throw new Error('驗證失敗');
       }
 
-      // 驗證成功後更新賬號列表
-      const formattedPhone = phoneToVerify.startsWith('+') ? phoneToVerify : `+852${phoneToVerify}`;
-      setLinkedAccounts(prev => [
-        ...prev,
-        {
-          type: 'phone',
-          value: formattedPhone,
-          isVerified: true
-        }
-      ]);
-      
+      console.log('驗證碼驗證成功');
+
       setSuccessMessage('手機號碼驗證成功');
-      setShowPhoneInput(false);
-      setShowVerificationCode(false);
-      setPhoneToVerify('');
+      setShowPhoneModal(false);
+      setPhoneNumber('');
       setVerificationCode('');
+      setIsVerifying(false);
 
       // 清理 reCAPTCHA
       if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
+        try {
+          await window.recaptchaVerifier.clear();
+          console.log('清理 reCAPTCHA 成功');
+        } catch (clearErr) {
+          console.error('清除 reCAPTCHA 時出錯:', clearErr);
+        }
         window.recaptchaVerifier = null;
       }
     } catch (err: any) {
-      console.error('Code verification error:', err);
+      console.error('驗證碼驗證錯誤:', err);
       if (err.code === 'auth/invalid-verification-code') {
         setError('驗證碼無效');
       } else if (err.code === 'auth/code-expired') {
@@ -250,6 +260,8 @@ export default function ProfilePage() {
       } else {
         setError(err.message || '驗證失敗');
       }
+    } finally {
+      setIsLoading(false);
     }
   };
 
