@@ -75,12 +75,15 @@ export interface GameSession {
   id: string;
   scriptId: string;
   userId: string;
-  status: 'not_started' | 'in_progress' | 'completed' | 'abandoned';
+  status: 'in_progress' | 'completed' | 'abandoned';
   currentLocationIndex: number;
   score: number;
   startTime: Date;
   endTime?: Date;
-  completedLocations: string[]; // 已完成的地點 ID
+  completedLocations: string[];
   hintsUsed: number;
-  updatedAt?: Date;
+  taskStatus: {
+    [taskId: string]: 'pending' | 'in_progress' | 'completed';
+  };
+  lastUpdated: Date;
 } 

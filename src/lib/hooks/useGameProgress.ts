@@ -9,12 +9,16 @@ import {
   where,
   orderBy,
   getDocs,
+  runTransaction,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { useAuth } from '@/contexts/AuthContext';
 import { GameSession } from '@/types';
 
-export const useGameProgress = (scriptId?: string) => {
+export const useGameProgress = (
+  scriptId?: string,
+  onGameComplete?: (sessionId: string, score: number) => void
+) => {
   const { user } = useAuth();
   const [gameSession, setGameSession] = useState<GameSession | null>(null);
   const [loading, setLoading] = useState(true);
@@ -117,6 +121,8 @@ export const useGameProgress = (scriptId?: string) => {
         startTime: new Date(),
         completedLocations: [],
         hintsUsed: 0,
+        taskStatus: {}, // 新增任務狀態追蹤
+        lastUpdated: new Date(),
       };
 
       const docRef = doc(collection(db, 'gameSessions'));
@@ -160,15 +166,98 @@ export const useGameProgress = (scriptId?: string) => {
         return;
       }
 
-      await updateDoc(sessionRef, {
+      // 更新任務狀態
+      const updatedTaskStatus = {
+        ...session.taskStatus,
+        ...(updates.taskStatus || {}),
+      };
+
+      // 檢查是否所有任務都已完成
+      const allTasksCompleted = Object.values(updatedTaskStatus).every(
+        status => status === 'completed'
+      );
+
+      // 準備更新數據
+      const updateData: Partial<GameSession> = {
         ...updates,
-        updatedAt: new Date(),
+        taskStatus: updatedTaskStatus,
+        lastUpdated: new Date(),
+      };
+
+      // 如果所有任務完成，更新遊戲狀態
+      if (allTasksCompleted) {
+        updateData.status = 'completed';
+        updateData.endTime = new Date();
+      }
+
+      // 使用事務來確保原子性更新
+      await runTransaction(db, async (transaction) => {
+        const currentDoc = await transaction.get(sessionRef);
+        if (!currentDoc.exists()) {
+          throw new Error('遊戲進度不存在');
+        }
+        transaction.update(sessionRef, updateData);
       });
 
-      setGameSession(prev => prev ? { ...prev, ...updates } : null);
+      // 更新本地狀態
+      setGameSession(prev => prev ? {
+        ...prev,
+        ...updateData,
+      } : null);
+
+      // 如果所有任務完成，觸發完成回調
+      if (allTasksCompleted) {
+        onGameComplete?.(sessionId, session.score);
+      }
     } catch (err: any) {
       console.error('更新遊戲進度失敗:', err);
       setError('更新遊戲進度時發生錯誤，請稍後重試');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 更新任務狀態
+  const updateTaskStatus = async (sessionId: string, taskId: string, status: 'pending' | 'in_progress' | 'completed') => {
+    if (!user) {
+      setError('請先登入以更新任務狀態');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const sessionRef = doc(db, 'gameSessions', sessionId);
+      const sessionDoc = await getDoc(sessionRef);
+
+      if (!sessionDoc.exists()) {
+        setError('遊戲進度不存在');
+        return;
+      }
+
+      const session = sessionDoc.data() as GameSession;
+      if (session.userId !== user.uid) {
+        setError('無權限更新此遊戲進度');
+        return;
+      }
+
+      const updatedTaskStatus = {
+        ...session.taskStatus,
+        [taskId]: status,
+      };
+
+      await updateDoc(sessionRef, {
+        taskStatus: updatedTaskStatus,
+        lastUpdated: new Date(),
+      });
+
+      setGameSession(prev => prev ? {
+        ...prev,
+        taskStatus: updatedTaskStatus,
+      } : null);
+    } catch (err: any) {
+      console.error('更新任務狀態失敗:', err);
+      setError('更新任務狀態時發生錯誤，請稍後重試');
     } finally {
       setLoading(false);
     }
@@ -203,6 +292,7 @@ export const useGameProgress = (scriptId?: string) => {
     error,
     createGameSession,
     updateGameProgress,
+    updateTaskStatus,
     completeGameSession,
   };
 }; 
