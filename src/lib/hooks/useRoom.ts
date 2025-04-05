@@ -91,7 +91,8 @@ export const useRoom = () => {
         updatedAt: new Date(),
       };
 
-      const docRef = await setDoc(doc(collection(db, 'rooms')), newRoom);
+      const docRef = doc(collection(db, 'rooms'));
+      await setDoc(docRef, newRoom);
       newRoom.id = docRef.id;
       return newRoom;
     } catch (error: any) {
