@@ -15,6 +15,8 @@ interface MapProps {
       coordinates: {
         lat: number;
         lng: number;
+        latitude?: number;
+        longitude?: number;
       };
     };
     isUnlocked: boolean;
@@ -40,6 +42,13 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
   useEffect(() => {
     const initializeMap = async () => {
       try {
+        // 檢查API密鑰
+        const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+        if (!apiKey) {
+          setMapError('Google Maps API密鑰未設置，請聯繫管理員');
+          return;
+        }
+
         // 如果已經載入，直接返回
         if (window.google?.maps) {
           setIsMapLoaded(true);
@@ -48,7 +57,7 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
 
         // 使用 Loader 載入 Google Maps API
         const loader = new Loader({
-          apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+          apiKey,
           version: 'weekly',
           libraries: ['places'],
           retries: 3,
@@ -61,9 +70,10 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
         setMapError(null);
 
         // 初始化地圖
-        if (mapRef.current && currentLocation) {
+        if (mapRef.current) {
+          const defaultCenter = currentLocation || { lat: 22.2783, lng: 114.1827 }; // 香港中心點
           mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
-            center: currentLocation,
+            center: defaultCenter,
             zoom: 15,
             mapTypeControl: false,
             fullscreenControl: false,
@@ -71,9 +81,17 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
             gestureHandling: 'greedy'
           });
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to load Google Maps:', error);
-        setMapError('無法載入地圖，請檢查網絡連接或重新整理頁面');
+        let errorMessage = '無法載入地圖，請檢查網絡連接或重新整理頁面';
+        
+        if (error.message?.includes('InvalidKeyMapError')) {
+          errorMessage = 'Google Maps API密鑰無效，請聯繫管理員';
+        } else if (error.message?.includes('MissingKeyMapError')) {
+          errorMessage = 'Google Maps API密鑰未設置，請聯繫管理員';
+        }
+        
+        setMapError(errorMessage);
       }
     };
 
@@ -90,15 +108,25 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
         markersRef.current = [];
       }
     };
-  }, [currentLocation]);
+  }, []); // 只在組件掛載時初始化一次
 
+  // 更新地圖中心點
   useEffect(() => {
-    if (!isMapLoaded || !mapRef.current || !currentLocation || mapError || !mapInstanceRef.current) return;
+    if (!isMapLoaded || !mapInstanceRef.current || !currentLocation || mapError) return;
 
     try {
-      // 更新地圖中心
       mapInstanceRef.current.setCenter(currentLocation);
+    } catch (error) {
+      console.error('Error updating map center:', error);
+      setMapError('更新地圖中心點時發生錯誤');
+    }
+  }, [isMapLoaded, currentLocation, mapError]);
 
+  // 更新當前位置標記
+  useEffect(() => {
+    if (!isMapLoaded || !mapInstanceRef.current || !currentLocation || mapError) return;
+
+    try {
       // 清除舊的當前位置標記
       if (markersRef.current[0]) {
         markersRef.current[0].setMap(null);
@@ -121,11 +149,12 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
 
       markersRef.current.unshift(currentMarker);
     } catch (error) {
-      console.error('Error updating map:', error);
-      setMapError('更新地圖時發生錯誤');
+      console.error('Error updating current location marker:', error);
+      setMapError('更新當前位置標記時發生錯誤');
     }
   }, [isMapLoaded, currentLocation, mapError]);
 
+  // 更新任務標記
   useEffect(() => {
     if (!isMapLoaded || !mapInstanceRef.current || mapError) return;
 
@@ -140,8 +169,20 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
 
       // 添加任務標記
       tasks.forEach(task => {
+        // 驗證座標
+        const lat = Number(task.location.coordinates.lat || task.location.coordinates.latitude);
+        const lng = Number(task.location.coordinates.lng || task.location.coordinates.longitude);
+        
+        if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+          console.error('無效的座標:', task.location.coordinates);
+          return;
+        }
+
         const marker = new window.google.maps.Marker({
-          position: task.location.coordinates,
+          position: {
+            lat,
+            lng
+          },
           map: mapInstanceRef.current,
           title: task.title,
           icon: {
@@ -164,7 +205,7 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
       console.error('Error updating task markers:', error);
       setMapError('更新任務標記時發生錯誤');
     }
-  }, [isMapLoaded, tasks, mapError]);
+  }, [isMapLoaded, tasks, mapError, onTaskClick]);
 
   if (mapError) {
     return (

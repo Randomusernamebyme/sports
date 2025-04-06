@@ -44,48 +44,51 @@ export default function PlayPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [taskError, setTaskError] = useState<string | null>(null);
   const MAX_DISTANCE = 1000; // 最大允許距離（米）
-  const { gameSession, loading: gameLoading, createGameSession, updateGameProgress, completeGameSession } = useGameProgress(id as string);
+  const { 
+    gameSession, 
+    loading: gameLoading, 
+    createGameSession, 
+    updateGameProgress, 
+    completeGameSession,
+    updateTaskStatus 
+  } = useGameProgress(id as string);
 
   useEffect(() => {
     if (script) {
       const initializeTasks = async () => {
-        // 如果有遊戲進度，從進度中讀取任務狀態
+        const createTaskFromLocation = (location: any, index: number, isCompleted: boolean, isUnlocked: boolean): Task => ({
+          id: `task-${index + 1}`,
+          title: `任務 ${index + 1}`,
+          description: `前往 ${location.name} 完成任務`,
+          location: {
+            name: location.name,
+            address: location.address,
+            coordinates: {
+              lat: Number(location.coordinates.latitude),
+              lng: Number(location.coordinates.longitude)
+            }
+          },
+          isCompleted,
+          isUnlocked,
+          status: isCompleted ? 'success' : undefined
+        });
+
         if (gameSession) {
-          const initialTasks = script.locations.map((location, index) => ({
-            id: `task-${index + 1}`,
-            title: `任務 ${index + 1}`,
-            description: `前往 ${location.name} 完成任務`,
-            location: {
-              name: location.name,
-              address: location.address,
-              coordinates: {
-                lat: location.coordinates?.latitude || 0,
-                lng: location.coordinates?.longitude || 0
-              }
-            },
-            isCompleted: gameSession.completedLocations.includes(`task-${index + 1}`),
-            isUnlocked: index <= gameSession.currentLocationIndex
-          }));
+          const initialTasks = script.locations.map((location, index) => 
+            createTaskFromLocation(
+              location,
+              index,
+              gameSession.completedLocations.includes(`task-${index + 1}`),
+              index <= gameSession.currentLocationIndex
+            )
+          );
           setTasks(initialTasks);
         } else {
-          // 如果沒有遊戲進度，創建新的遊戲進度
           try {
-            const newSession = await createGameSession();
-            const initialTasks = script.locations.map((location, index) => ({
-              id: `task-${index + 1}`,
-              title: `任務 ${index + 1}`,
-              description: `前往 ${location.name} 完成任務`,
-              location: {
-                name: location.name,
-                address: location.address,
-                coordinates: {
-                  lat: location.coordinates?.latitude || 0,
-                  lng: location.coordinates?.longitude || 0
-                }
-              },
-              isCompleted: false,
-              isUnlocked: index === 0
-            }));
+            await createGameSession();
+            const initialTasks = script.locations.map((location, index) => 
+              createTaskFromLocation(location, index, false, index === 0)
+            );
             setTasks(initialTasks);
           } catch (error) {
             console.error('創建遊戲進度失敗:', error);
@@ -247,59 +250,58 @@ export default function PlayPage() {
     setShowCamera(false);
   };
 
-  const handleTaskSubmit = async () => {
-    if (selectedTask && capturedPhoto && gameSession) {
-      setIsSubmitting(true);
-      try {
-        // 更新任務狀態
-        const updatedTasks = tasks.map(task =>
+  const handleSubmit = async () => {
+    if (!selectedTask || !capturedPhoto) {
+      setTaskError('請先拍攝照片');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setTaskError(null);
+
+    try {
+      // 更新任務狀態為完成
+      await updateTaskStatus(selectedTask.id, 'completed');
+
+      // 更新本地任務狀態
+      setTasks(prevTasks => 
+        prevTasks.map(task => {
+          if (task.id === selectedTask.id) {
+            return {
+              ...task,
+              isCompleted: true,
+              status: 'success' as const,
+              photo: capturedPhoto
+            };
+          } else if (!task.isUnlocked && task.id === `task-${parseInt(selectedTask.id.split('-')[1]) + 1}`) {
+            // 解鎖下一個任務
+            return {
+              ...task,
+              isUnlocked: true
+            };
+          }
+          return task;
+        })
+      );
+
+      // 重置狀態
+      setSelectedTask(null);
+      setCapturedPhoto(null);
+      setShowCamera(false);
+    } catch (error) {
+      console.error('提交任務失敗:', error);
+      setTaskError('提交任務時發生錯誤，請稍後重試');
+
+      // 更新失敗狀態
+      setTasks(prevTasks =>
+        prevTasks.map(task =>
           task.id === selectedTask.id
-            ? {
-                ...task,
-                isCompleted: true,
-                status: 'success' as const,
-                photo: capturedPhoto
-              }
+            ? { ...task, status: 'failed' as const, errorMessage: '提交失敗，請重試' }
             : task
-        );
-
-        // 找到當前任務的索引
-        const currentIndex = tasks.findIndex(t => t.id === selectedTask.id);
-        
-        // 如果不是最後一個任務，解鎖下一個任務
-        if (currentIndex < tasks.length - 1) {
-          updatedTasks[currentIndex + 1] = {
-            ...updatedTasks[currentIndex + 1],
-            isUnlocked: true
-          };
-        }
-
-        setTasks(updatedTasks);
-
-        // 更新遊戲進度
-        await updateGameProgress(gameSession.id, {
-          currentLocationIndex: Math.max(currentIndex + 1, gameSession.currentLocationIndex),
-          completedLocations: [
-            ...gameSession.completedLocations,
-            selectedTask.id
-          ],
-          score: (gameSession.score || 0) + 100 // 每完成一個任務加100分
-        });
-
-        // 如果所有任務都完成了，標記遊戲為完成狀態
-        const allTasksCompleted = updatedTasks.every(task => task.isCompleted);
-        if (allTasksCompleted) {
-          await completeGameSession(gameSession.id, (gameSession.score || 0) + 100);
-        }
-
-        setSelectedTask(null);
-        setCapturedPhoto(null);
-      } catch (error) {
-        console.error('提交失敗:', error);
-        setTaskError('提交失敗，請重試');
-      } finally {
-        setIsSubmitting(false);
-      }
+        )
+      );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -329,7 +331,7 @@ export default function PlayPage() {
           {/* 主要內容區域 - 使用 grid 佈局 */}
           <div className="flex-1 grid grid-cols-1 md:grid-cols-2 overflow-hidden">
             {/* 地圖區域 */}
-            <div className="relative h-[50vh] md:h-full">
+            <div className="relative h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)]">
               <Map
                 currentLocation={currentLocation}
                 tasks={tasks}
@@ -338,7 +340,7 @@ export default function PlayPage() {
             </div>
 
             {/* 任務列表區域 - 可滾動 */}
-            <div className="bg-white overflow-y-auto h-[50vh] md:h-full">
+            <div className="bg-white overflow-y-auto h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)]">
               <div className="p-4 space-y-4">
                 {tasks.map((task) => (
                   <div
@@ -443,7 +445,7 @@ export default function PlayPage() {
                     </button>
                     {capturedPhoto && (
                       <button
-                        onClick={handleTaskSubmit}
+                        onClick={handleSubmit}
                         disabled={isSubmitting}
                         className="flex-1 py-2 px-4 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
                       >

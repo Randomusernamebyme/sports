@@ -11,6 +11,7 @@ import {
   orderBy,
   getDocs,
   runTransaction,
+  arrayUnion,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { useAuth } from '@/contexts/AuthContext';
@@ -25,6 +26,16 @@ export const useGameProgress = (
   const [gameSession, setGameSession] = useState<GameSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // 計算遊戲分數
+  const calculateScore = (session: GameSession) => {
+    const baseScore = 1000;
+    const startTime = session.startTime instanceof Date ? session.startTime : new Date();
+    const endTime = session.endTime instanceof Date ? session.endTime : new Date();
+    const timeBonus = Math.floor((endTime.getTime() - startTime.getTime()) / (1000 * 60)); // 每分鐘加1分
+    const hintPenalty = (session.hintsUsed || 0) * 50; // 每個提示扣50分
+    return Math.max(0, baseScore + timeBonus - hintPenalty);
+  };
 
   // 獲取遊戲進度
   useEffect(() => {
@@ -220,76 +231,95 @@ export const useGameProgress = (
   };
 
   // 更新任務狀態
-  const updateTaskStatus = async (sessionId: string, taskId: string, status: 'pending' | 'in_progress' | 'completed') => {
+  const updateTaskStatus = async (taskId: string, status: 'pending' | 'in_progress' | 'completed') => {
     if (!user) {
-      setError('請先登入以更新任務狀態');
-      return;
+      throw new Error('用戶未登入');
+    }
+
+    if (!gameSession) {
+      throw new Error('找不到遊戲進度');
     }
 
     try {
-      setLoading(true);
-      setError(null);
-      const sessionRef = doc(db, 'gameSessions', sessionId);
-      const sessionDoc = await getDoc(sessionRef);
+      const sessionRef = doc(db, 'gameSessions', gameSession.id);
+      const taskIndex = parseInt(taskId.split('-')[1]) - 1;
 
-      if (!sessionDoc.exists()) {
-        setError('遊戲進度不存在');
-        return;
+      // 檢查是否可以更新任務狀態
+      if (status === 'completed' && taskIndex > gameSession.currentLocationIndex) {
+        throw new Error('需要先完成前面的任務');
       }
-
-      const session = sessionDoc.data() as GameSession;
-      if (session.userId !== user.uid) {
-        setError('無權限更新此遊戲進度');
-        return;
-      }
-
-      // 更新任務狀態
-      const updatedTaskStatus = {
-        ...session.taskStatus,
-        [taskId]: status,
-      };
-
-      // 檢查是否所有任務都已完成
-      const allTasksCompleted = Object.values(updatedTaskStatus).every(
-        status => status === 'completed'
-      );
 
       // 準備更新數據
-      const updateData: Partial<GameSession> = {
-        taskStatus: updatedTaskStatus,
-        lastUpdated: new Date(),
+      const updateData: any = {
+        [`taskStatus.${taskId}`]: status,
+        lastUpdated: new Date()
       };
 
-      // 如果所有任務完成，更新遊戲狀態
-      if (allTasksCompleted) {
-        updateData.status = 'completed';
-        updateData.endTime = new Date();
+      // 如果任務完成，更新完成狀態和當前位置索引
+      if (status === 'completed') {
+        updateData.completedLocations = arrayUnion(taskId);
+        updateData.currentLocationIndex = Math.max(gameSession.currentLocationIndex, taskIndex + 1);
       }
 
-      // 使用事務來確保原子性更新
+      // 使用事務確保數據一致性
       await runTransaction(db, async (transaction) => {
-        const currentDoc = await transaction.get(sessionRef);
-        if (!currentDoc.exists()) {
-          throw new Error('遊戲進度不存在');
+        const sessionDoc = await transaction.get(sessionRef);
+        if (!sessionDoc.exists()) {
+          throw new Error('找不到遊戲進度');
         }
+
+        const sessionData = sessionDoc.data() as GameSession;
+        
+        // 檢查是否所有任務都已完成
+        const allTasksCompleted = Object.values(sessionData.taskStatus).every(
+          taskStatus => taskStatus === 'completed'
+        );
+
+        // 如果所有任務都已完成，更新遊戲狀態
+        if (allTasksCompleted) {
+          updateData.status = 'completed';
+          updateData.endTime = new Date();
+          updateData.score = calculateScore(sessionData);
+        }
+
         transaction.update(sessionRef, updateData);
       });
 
       // 更新本地狀態
-      setGameSession(prev => prev ? {
-        ...prev,
-        ...updateData,
-      } : null);
+      setGameSession(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          taskStatus: {
+            ...prev.taskStatus,
+            [taskId]: status
+          },
+          completedLocations: status === 'completed' 
+            ? [...prev.completedLocations, taskId]
+            : prev.completedLocations,
+          currentLocationIndex: status === 'completed'
+            ? Math.max(prev.currentLocationIndex, taskIndex + 1)
+            : prev.currentLocationIndex,
+          status: Object.values(prev.taskStatus).every(
+            taskStatus => taskStatus === 'completed'
+          ) ? 'completed' : prev.status,
+          endTime: Object.values(prev.taskStatus).every(
+            taskStatus => taskStatus === 'completed'
+          ) ? new Date() : prev.endTime
+        };
+      });
 
-      // 如果所有任務完成，觸發完成回調
-      if (allTasksCompleted) {
-        onGameComplete?.(sessionId, session.score);
+      // 如果所有任務都已完成，觸發完成回調
+      if (Object.values(gameSession.taskStatus).every(
+        taskStatus => taskStatus === 'completed'
+      )) {
+        handleGameComplete(gameSession.id, calculateScore(gameSession));
       }
-    } catch (err: any) {
-      console.error('更新任務狀態失敗:', err);
-      setError('更新任務狀態時發生錯誤，請稍後重試');
-    } finally {
-      setLoading(false);
+
+      return true;
+    } catch (error) {
+      console.error('更新任務狀態失敗:', error);
+      throw error;
     }
   };
 
