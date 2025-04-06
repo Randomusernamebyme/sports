@@ -5,15 +5,17 @@ import { useRef, useState, useEffect } from 'react';
 interface CameraProps {
   onCapture: (photo: string) => void;
   onCancel: () => void;
+  onError?: (error: string) => void;
 }
 
-export default function Camera({ onCapture, onCancel }: CameraProps) {
+export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [isCameraAvailable, setIsCameraAvailable] = useState(true);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     startCamera();
@@ -24,27 +26,36 @@ export default function Camera({ onCapture, onCancel }: CameraProps) {
 
   const startCamera = async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
       });
-      setStream(mediaStream);
+      setStream(stream);
       if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
+        videoRef.current.srcObject = stream;
       }
       setIsCameraAvailable(true);
       setError(null);
-    } catch (err: any) {
-      console.error('無法啟動相機:', err);
-      setIsCameraAvailable(false);
-      if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-        setError('找不到相機設備，請使用照片上傳');
-      } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setError('請允許使用相機權限');
-      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-        setError('無法訪問相機，請確保沒有其他應用程式正在使用相機');
-      } else {
-        setError('無法啟動相機，請使用照片上傳');
+    } catch (error: any) {
+      console.error('無法啟動相機:', error);
+      let errorMessage = '無法啟動相機';
+      
+      if (error.name === 'NotFoundError') {
+        errorMessage = '找不到相機設備，請確保允許使用相機權限';
+      } else if (error.name === 'NotAllowedError') {
+        errorMessage = '請允許使用相機權限以繼續';
+      } else if (error.name === 'NotReadableError') {
+        errorMessage = '無法訪問相機，請確保沒有其他應用正在使用相機';
       }
+      
+      if (onError) {
+        onError(errorMessage);
+      }
+      setIsCameraAvailable(false);
+      setError(errorMessage);
     }
   };
 
@@ -55,16 +66,32 @@ export default function Camera({ onCapture, onCancel }: CameraProps) {
     }
   };
 
-  const handleCapture = () => {
-    if (videoRef.current) {
-      const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0);
-        const photo = canvas.toDataURL('image/jpeg');
-        setCapturedImage(photo);
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d');
+
+    if (!context) return;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    try {
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const photoData = canvas.toDataURL('image/jpeg', 0.8);
+      onCapture(photoData);
+
+      const stream = video.srcObject as MediaStream;
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    } catch (error) {
+      console.error('拍照失敗:', error);
+      if (onError) {
+        onError('拍照失敗，請重試');
       }
     }
   };
@@ -119,6 +146,15 @@ export default function Camera({ onCapture, onCancel }: CameraProps) {
               autoPlay
               playsInline
               className="w-full h-full object-cover"
+              onLoadedMetadata={(e) => {
+                const video = e.target as HTMLVideoElement;
+                video.play().catch(error => {
+                  console.error('視頻播放失敗:', error);
+                  if (onError) {
+                    onError('無法啟動相機預覽');
+                  }
+                });
+              }}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gray-100">
@@ -145,7 +181,7 @@ export default function Camera({ onCapture, onCancel }: CameraProps) {
             </button>
             {isCameraAvailable && (
               <button
-                onClick={handleCapture}
+                onClick={capturePhoto}
                 className="p-4 rounded-full bg-white"
               >
                 <div className="w-12 h-12 rounded-full border-4 border-indigo-600" />
@@ -198,6 +234,7 @@ export default function Camera({ onCapture, onCancel }: CameraProps) {
         className="hidden"
         onChange={handleFileUpload}
       />
+      <canvas ref={canvasRef} className="hidden" />
     </div>
   );
 } 

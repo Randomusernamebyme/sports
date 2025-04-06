@@ -402,6 +402,10 @@ export default function PlayPage() {
                       <Camera
                         onCapture={handlePhotoCapture}
                         onCancel={() => setShowCamera(false)}
+                        onError={(error) => {
+                          setTaskError(error);
+                          setShowCamera(false);
+                        }}
                       />
                     </div>
                   ) : capturedPhoto ? (
