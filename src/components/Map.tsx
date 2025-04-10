@@ -192,7 +192,7 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
 
       // 更新任務標記
       taskMarkers.forEach(marker => {
-        if (marker.map) {
+        if (marker && marker.map) {
           marker.map = null;
         }
       });
@@ -259,10 +259,13 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
   // 清理函數
   useEffect(() => {
     return () => {
-      // 清除所有標記
+      // 安全地清除所有標記
       if (currentLocationMarker) {
         try {
-          currentLocationMarker.map = null;
+          // 只設置 map 為 null，不要嘗試手動刪除 DOM 元素
+          if (currentLocationMarker.map) {
+            currentLocationMarker.map = null;
+          }
         } catch (error) {
           console.error('Error removing current location marker:', error);
         }
@@ -270,6 +273,7 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
       
       taskMarkers.forEach(marker => {
         try {
+          // 只設置 map 為 null，不要嘗試手動刪除 DOM 元素
           if (marker && marker.map) {
             marker.map = null;
           }
