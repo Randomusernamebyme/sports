@@ -342,11 +342,41 @@ export const useGameProgress = (
     try {
       setLoading(true);
       setError(null);
-      await updateGameProgress(sessionId, {
+      
+      // 使用事務確保原子性更新
+      await runTransaction(db, async (transaction) => {
+        const sessionRef = doc(db, 'gameSessions', sessionId);
+        const sessionDoc = await transaction.get(sessionRef);
+        
+        if (!sessionDoc.exists()) {
+          throw new Error('找不到遊戲進度');
+        }
+
+        const sessionData = sessionDoc.data() as GameSession;
+        if (sessionData.userId !== user.uid) {
+          throw new Error('無權限更新此遊戲進度');
+        }
+
+        // 更新遊戲狀態
+        transaction.update(sessionRef, {
+          status: 'completed',
+          score: finalScore,
+          endTime: new Date(),
+          lastUpdated: new Date()
+        });
+      });
+
+      // 更新本地狀態
+      setGameSession(prev => prev ? {
+        ...prev,
         status: 'completed',
         score: finalScore,
         endTime: new Date(),
-      });
+        lastUpdated: new Date()
+      } : null);
+
+      // 觸發完成回調
+      onGameComplete?.(sessionId, finalScore);
     } catch (err: any) {
       console.error('完成遊戲失敗:', err);
       setError('完成遊戲時發生錯誤，請稍後重試');
