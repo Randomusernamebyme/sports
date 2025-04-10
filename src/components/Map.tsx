@@ -214,7 +214,7 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
         position,
         map: mapInstanceRef.current,
         title: '您的位置',
-        content: createMarkerDiv('#3B82F6', 20)
+        content: createMarkerDiv('#3B82F6', 20)  // 每次創建新的 DOM 元素
       });
 
       if (isMounted) {
@@ -254,11 +254,12 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
 
           const taskPosition = { lat, lng };
           
+          // 為每個標記創建獨立的 DOM 元素
           const marker = new window.google.maps.marker.AdvancedMarkerElement({
             position: taskPosition,
             map: mapInstanceRef.current,
             title: task.title,
-            content: createMarkerDiv(task.isCompleted ? '#10B981' : '#6366F1', 16)
+            content: createMarkerDiv(task.isCompleted ? '#10B981' : '#6366F1', 16)  // 每次創建新的 DOM 元素
           });
 
           marker.addEventListener('gmp-click', () => {
