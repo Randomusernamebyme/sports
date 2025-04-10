@@ -67,13 +67,23 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
   };
 
   const capturePhoto = () => {
-    if (!videoRef.current || !canvasRef.current) return;
+    if (!videoRef.current || !canvasRef.current) {
+      if (onError) {
+        onError('無法獲取相機畫面');
+      }
+      return;
+    }
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
 
-    if (!context) return;
+    if (!context) {
+      if (onError) {
+        onError('無法創建畫布上下文');
+      }
+      return;
+    }
 
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
