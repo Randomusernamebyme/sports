@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
+import { writeBatch, query, where, getDocs } from 'firebase/firestore';
 
 interface MapProps {
   currentLocation: {
