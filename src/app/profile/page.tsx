@@ -88,19 +88,29 @@ export default function ProfilePage() {
         const snapshot = await getDocs(q);
         
         const stats = {
-          total: snapshot.size,
+          total: 0,
           completed: 0,
           inProgress: 0
         };
 
+        // 用於追蹤已完成的劇本
+        const completedScripts = new Set<string>();
+        
         snapshot.forEach(doc => {
           const data = doc.data();
           if (data.status === 'completed') {
-            stats.completed++;
+            // 只計算每個劇本一次
+            if (!completedScripts.has(data.scriptId)) {
+              completedScripts.add(data.scriptId);
+              stats.completed++;
+            }
           } else if (data.status === 'in_progress') {
             stats.inProgress++;
           }
         });
+
+        // 總數為已完成劇本數加上進行中的游戲數
+        stats.total = stats.completed + stats.inProgress;
 
         setGameStats(stats);
       } catch (error) {

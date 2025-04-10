@@ -57,26 +57,21 @@ export const useGameProgress = (
         setError(null);
         const sessionsRef = collection(db, 'gameSessions');
         
+        // 只獲取進行中的游戲
         const q = query(
           sessionsRef,
           where('userId', '==', user.uid),
-          where('scriptId', '==', scriptId)
+          where('scriptId', '==', scriptId),
+          where('status', '==', 'in_progress')
         );
 
         const snapshot = await getDocs(q);
         if (!snapshot.empty) {
-          const sessions = snapshot.docs.map(doc => ({
-            ...doc.data(),
-            id: doc.id
-          })) as GameSession[];
-          
-          const sortedSessions = sessions.sort((a, b) => {
-            const timeA = a.startTime instanceof Date ? a.startTime : new Date(a.startTime);
-            const timeB = b.startTime instanceof Date ? b.startTime : new Date(b.startTime);
-            return timeB.getTime() - timeA.getTime();
-          });
-          
-          setGameSession(sortedSessions[0]);
+          const session = {
+            ...snapshot.docs[0].data(),
+            id: snapshot.docs[0].id
+          } as GameSession;
+          setGameSession(session);
         } else {
           setGameSession(null);
         }
@@ -107,22 +102,6 @@ export const useGameProgress = (
       setLoading(true);
       setError(null);
 
-      // 檢查是否已有進行中的遊戲
-      const sessionsRef = collection(db, 'gameSessions');
-      const q = query(
-        sessionsRef,
-        where('userId', '==', user.uid),
-        where('scriptId', '==', scriptId),
-        where('status', '==', 'in_progress')
-      );
-
-      const snapshot = await getDocs(q);
-      if (!snapshot.empty) {
-        const existingSession = snapshot.docs[0].data() as GameSession;
-        setGameSession(existingSession);
-        return existingSession;
-      }
-
       // 創建新的遊戲進度
       const newSession: GameSession = {
         id: '',
@@ -134,7 +113,7 @@ export const useGameProgress = (
         startTime: new Date(),
         completedLocations: [],
         hintsUsed: 0,
-        taskStatus: {}, // 新增任務狀態追蹤
+        taskStatus: {},
         lastUpdated: new Date(),
       };
 
@@ -288,24 +267,27 @@ export const useGameProgress = (
       // 更新本地狀態
       setGameSession(prev => {
         if (!prev) return null;
+        const updatedTaskStatus = {
+          ...prev.taskStatus,
+          [taskId]: status
+        };
+        
+        const allTasksCompleted = Object.values(updatedTaskStatus).every(
+          taskStatus => taskStatus === 'completed'
+        );
+
         return {
           ...prev,
-          taskStatus: {
-            ...prev.taskStatus,
-            [taskId]: status
-          },
+          taskStatus: updatedTaskStatus,
           completedLocations: status === 'completed' 
             ? [...prev.completedLocations, taskId]
             : prev.completedLocations,
           currentLocationIndex: status === 'completed'
             ? Math.max(prev.currentLocationIndex, taskIndex + 1)
             : prev.currentLocationIndex,
-          status: Object.values(prev.taskStatus).every(
-            taskStatus => taskStatus === 'completed'
-          ) ? 'completed' : prev.status,
-          endTime: Object.values(prev.taskStatus).every(
-            taskStatus => taskStatus === 'completed'
-          ) ? new Date() : prev.endTime
+          status: allTasksCompleted ? 'completed' : prev.status,
+          endTime: allTasksCompleted ? new Date() : prev.endTime,
+          score: allTasksCompleted ? calculateScore(prev) : prev.score
         };
       });
 
@@ -319,7 +301,6 @@ export const useGameProgress = (
       return true;
     } catch (error: any) {
       console.error('更新任務狀態失敗:', error);
-      // 提供更具體的錯誤信息
       if (error.message === '用戶未登入') {
         throw new Error('請先登入後再提交任務');
       } else if (error.message === '找不到遊戲進度') {
