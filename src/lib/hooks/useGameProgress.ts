@@ -317,9 +317,18 @@ export const useGameProgress = (
       }
 
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('更新任務狀態失敗:', error);
-      throw error;
+      // 提供更具體的錯誤信息
+      if (error.message === '用戶未登入') {
+        throw new Error('請先登入後再提交任務');
+      } else if (error.message === '找不到遊戲進度') {
+        throw new Error('遊戲進度已丟失，請重新開始遊戲');
+      } else if (error.message === '需要先完成前面的任務') {
+        throw new Error('請按順序完成任務');
+      } else {
+        throw new Error('提交任務時發生錯誤，請稍後重試');
+      }
     }
   };
 

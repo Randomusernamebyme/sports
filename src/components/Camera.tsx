@@ -16,122 +16,76 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
   const [error, setError] = useState<string | null>(null);
   const [isCameraAvailable, setIsCameraAvailable] = useState(true);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
-    startCamera();
-    return () => {
-      stopCamera();
-    };
-  }, []);
+    let mounted = true;
 
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+    const startCamera = async () => {
+      try {
+        const mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' },
+          audio: false
+        });
+
+        if (mounted) {
+          setStream(mediaStream);
+          if (videoRef.current) {
+            videoRef.current.srcObject = mediaStream;
+          }
+          setIsCameraAvailable(true);
+          setError(null);
         }
-      });
-      setStream(stream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+      } catch (err: any) {
+        console.error('相機初始化失敗:', err);
+        if (mounted) {
+          setError('無法訪問相機，請允許相機權限或使用上傳照片功能');
+          setIsCameraAvailable(false);
+        }
       }
-      setIsCameraAvailable(true);
-      setError(null);
-    } catch (error: any) {
-      console.error('無法啟動相機:', error);
-      let errorMessage = '無法啟動相機';
-      
-      if (error.name === 'NotFoundError') {
-        errorMessage = '找不到相機設備，請確保允許使用相機權限';
-      } else if (error.name === 'NotAllowedError') {
-        errorMessage = '請允許使用相機權限以繼續';
-      } else if (error.name === 'NotReadableError') {
-        errorMessage = '無法訪問相機，請確保沒有其他應用正在使用相機';
-      }
-      
-      if (onError) {
-        onError(errorMessage);
-      }
-      setIsCameraAvailable(false);
-      setError(errorMessage);
-    }
-  };
+    };
 
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      setStream(null);
-    }
-  };
+    startCamera();
 
-  const capturePhoto = () => {
-    if (!videoRef.current || !canvasRef.current) {
-      if (onError) {
-        onError('無法獲取相機畫面');
-      }
-      return;
-    }
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
-
-    if (!context) {
-      if (onError) {
-        onError('無法創建畫布上下文');
-      }
-      return;
-    }
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-    try {
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      const photoData = canvas.toDataURL('image/jpeg', 0.8);
-      onCapture(photoData);
-
-      const stream = video.srcObject as MediaStream;
+    return () => {
+      mounted = false;
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
-    } catch (error) {
-      console.error('拍照失敗:', error);
-      if (onError) {
-        onError('拍照失敗，請重試');
-      }
-    }
+    };
+  }, []);
+
+  const handleCapture = () => {
+    if (!videoRef.current) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.drawImage(videoRef.current, 0, 0);
+    const photo = canvas.toDataURL('image/jpeg');
+    onCapture(photo);
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      // 檢查文件類型
-      if (!file.type.startsWith('image/')) {
-        setError('請選擇圖片文件');
-        return;
-      }
+    if (!file) return;
 
-      // 檢查文件大小（限制為 5MB）
-      if (file.size > 5 * 1024 * 1024) {
-        setError('圖片大小不能超過 5MB');
-        return;
+    setIsUploading(true);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (e.target?.result) {
+        onCapture(e.target.result as string);
       }
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const photo = e.target?.result as string;
-        setCapturedImage(photo);
-        setError(null);
-      };
-      reader.onerror = () => {
-        setError('讀取文件失敗，請重試');
-      };
-      reader.readAsDataURL(file);
-    }
+      setIsUploading(false);
+    };
+    reader.onerror = () => {
+      setError('讀取照片失敗，請重試');
+      setIsUploading(false);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleConfirm = () => {
@@ -170,12 +124,21 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
             <div className="w-full h-full flex items-center justify-center bg-gray-100">
               <div className="text-center p-4">
                 <p className="text-gray-600 mb-4">{error || '相機不可用'}</p>
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                >
-                  選擇照片
-                </button>
+                <div className="space-y-4">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    {isUploading ? '上傳中...' : '上傳照片'}
+                  </button>
+                  <button
+                    onClick={onCancel}
+                    className="block w-full px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+                  >
+                    取消
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -191,7 +154,7 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
             </button>
             {isCameraAvailable && (
               <button
-                onClick={capturePhoto}
+                onClick={handleCapture}
                 className="p-4 rounded-full bg-white"
               >
                 <div className="w-12 h-12 rounded-full border-4 border-indigo-600" />
