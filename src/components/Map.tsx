@@ -35,12 +35,12 @@ declare global {
 export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
-  const markersRef = useRef<any[]>([]);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
-  const [currentLocationMarker, setCurrentLocationMarker] = useState<google.maps.marker.AdvancedMarkerElement | null>(null);
-  const [taskMarkers, setTaskMarkers] = useState<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const [currentLocationMarker, setCurrentLocationMarker] = useState<google.maps.Marker | null>(null);
+  const [taskMarkers, setTaskMarkers] = useState<google.maps.Marker[]>([]);
 
+  // 初始化地圖
   useEffect(() => {
     const initializeMap = async () => {
       try {
@@ -61,7 +61,7 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
         const loader = new Loader({
           apiKey,
           version: 'weekly',
-          libraries: ['places', 'marker'],
+          libraries: ['places'],
           retries: 3,
           language: 'zh-TW',
           region: 'HK'
@@ -101,45 +101,14 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
 
     return () => {
       // 清除所有標記
-      if (markersRef.current) {
-        markersRef.current.forEach(marker => {
-          try {
-            if (marker && typeof marker.setMap === 'function') {
-              marker.setMap(null);
-            }
-          } catch (error) {
-            console.error('Error cleaning up marker:', error);
-          }
-        });
-        markersRef.current = [];
+      if (currentLocationMarker) {
+        currentLocationMarker.setMap(null);
       }
+      taskMarkers.forEach(marker => {
+        marker.setMap(null);
+      });
     };
   }, []); // 只在組件掛載時初始化一次
-
-  // 初始化地圖
-  useEffect(() => {
-    if (!isMapLoaded || !mapInstanceRef.current) return;
-
-    try {
-      // 使用預設座標（香港中心點）或當前位置
-      const defaultCenter = { lat: 22.2783, lng: 114.1827 };
-      const position = currentLocation && 
-        !isNaN(Number(currentLocation.lat)) && 
-        !isNaN(Number(currentLocation.lng)) && 
-        Number(currentLocation.lat) !== 0 && 
-        Number(currentLocation.lng) !== 0
-        ? { 
-            lat: Number(currentLocation.lat), 
-            lng: Number(currentLocation.lng) 
-          }
-        : defaultCenter;
-
-      mapInstanceRef.current.setCenter(position);
-    } catch (error) {
-      console.error('Error updating map center:', error);
-      setMapError('更新地圖中心點時發生錯誤');
-    }
-  }, [isMapLoaded, currentLocation]);
 
   // 更新當前位置標記
   useEffect(() => {
@@ -159,27 +128,25 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
           }
         : defaultCenter;
 
+      // 更新地圖中心
+      mapInstanceRef.current.setCenter(position);
+
       // 更新或創建當前位置標記
       if (currentLocationMarker) {
-        try {
-          currentLocationMarker.position = position;
-        } catch (error) {
-          console.error('Error updating current location marker position:', error);
-          // 如果更新失敗，創建新的標記
-          const marker = new window.google.maps.marker.AdvancedMarkerElement({
-            position,
-            map: mapInstanceRef.current,
-            title: '您的位置',
-            content: createMarkerContent('#3B82F6', 10)
-          });
-          setCurrentLocationMarker(marker);
-        }
+        currentLocationMarker.setPosition(position);
       } else {
-        const marker = new window.google.maps.marker.AdvancedMarkerElement({
+        const marker = new window.google.maps.Marker({
           position,
           map: mapInstanceRef.current,
           title: '您的位置',
-          content: createMarkerContent('#3B82F6', 10)
+          icon: {
+            path: window.google.maps.SymbolPath.CIRCLE,
+            scale: 10,
+            fillColor: '#3B82F6',
+            fillOpacity: 1,
+            strokeColor: '#FFFFFF',
+            strokeWeight: 2
+          }
         });
         setCurrentLocationMarker(marker);
       }
@@ -194,20 +161,14 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
     if (!isMapLoaded || !mapInstanceRef.current) return;
 
     try {
-      // 安全地清除舊的標記
+      // 清除舊的標記
       taskMarkers.forEach(marker => {
-        try {
-          if (marker && marker.map) {
-            marker.map = null;
-          }
-        } catch (error) {
-          console.error('Error removing task marker:', error);
-        }
+        marker.setMap(null);
       });
       setTaskMarkers([]);
 
       // 添加新的標記
-      const newTaskMarkers: google.maps.marker.AdvancedMarkerElement[] = [];
+      const newTaskMarkers: google.maps.Marker[] = [];
       tasks.forEach(task => {
         if (!task.location?.coordinates) return;
 
@@ -221,14 +182,18 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
         }
 
         const position = { lat, lng };
-        const marker = new window.google.maps.marker.AdvancedMarkerElement({
+        const marker = new window.google.maps.Marker({
           position,
           map: mapInstanceRef.current,
           title: task.title,
-          content: createMarkerContent(
-            task.isCompleted ? '#10B981' : '#6366F1',
-            8
-          )
+          icon: {
+            path: window.google.maps.SymbolPath.CIRCLE,
+            scale: 8,
+            fillColor: task.isCompleted ? '#10B981' : '#6366F1',
+            fillOpacity: 1,
+            strokeColor: '#FFFFFF',
+            strokeWeight: 2
+          }
         });
 
         marker.addListener('click', () => {
@@ -246,44 +211,6 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
       setMapError('更新任務標記時發生錯誤');
     }
   }, [isMapLoaded, tasks, onTaskClick]);
-
-  // 創建標記內容
-  const createMarkerContent = (color: string, size: number) => {
-    const div = document.createElement('div');
-    div.style.width = `${size * 2}px`;
-    div.style.height = `${size * 2}px`;
-    div.style.borderRadius = '50%';
-    div.style.backgroundColor = color;
-    div.style.border = '2px solid white';
-    div.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
-    return div;
-  };
-
-  // 清理函數
-  useEffect(() => {
-    return () => {
-      // 安全地清理標記
-      if (currentLocationMarker) {
-        try {
-          if (currentLocationMarker.map) {
-            currentLocationMarker.map = null;
-          }
-        } catch (error) {
-          console.error('Error cleaning up current location marker:', error);
-        }
-      }
-      
-      taskMarkers.forEach(marker => {
-        try {
-          if (marker && marker.map) {
-            marker.map = null;
-          }
-        } catch (error) {
-          console.error('Error cleaning up task marker:', error);
-        }
-      });
-    };
-  }, [currentLocationMarker, taskMarkers]);
 
   if (mapError) {
     return (
@@ -305,6 +232,7 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
     <div
       ref={mapRef}
       className="w-full h-full relative"
+      style={{ minHeight: '400px' }}
     >
       {!isMapLoaded && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
