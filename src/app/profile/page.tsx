@@ -6,6 +6,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { RecaptchaVerifier, PhoneAuthProvider, linkWithPhoneNumber, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { db } from '@/lib/firebase/config';
 
 interface LinkedAccount {
   type: 'email' | 'phone' | 'google';
@@ -35,6 +37,12 @@ export default function ProfilePage() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPhoneModal, setShowPhoneModal] = useState(false);
+  const [isClearingGames, setIsClearingGames] = useState(false);
+  const [gameStats, setGameStats] = useState({
+    total: 0,
+    completed: 0,
+    inProgress: 0
+  });
 
   useEffect(() => {
     if (user) {
@@ -67,6 +75,40 @@ export default function ProfilePage() {
       }
       setLinkedAccounts(accounts);
     }
+  }, [user]);
+
+  // 獲取游戲統計
+  useEffect(() => {
+    const fetchGameStats = async () => {
+      if (!user) return;
+
+      try {
+        const sessionsRef = collection(db, 'gameSessions');
+        const q = query(sessionsRef, where('userId', '==', user.uid));
+        const snapshot = await getDocs(q);
+        
+        const stats = {
+          total: snapshot.size,
+          completed: 0,
+          inProgress: 0
+        };
+
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          if (data.status === 'completed') {
+            stats.completed++;
+          } else if (data.status === 'in_progress') {
+            stats.inProgress++;
+          }
+        });
+
+        setGameStats(stats);
+      } catch (error) {
+        console.error('獲取游戲統計失敗:', error);
+      }
+    };
+
+    fetchGameStats();
   }, [user]);
 
   const handleSave = async () => {
@@ -355,6 +397,40 @@ export default function ProfilePage() {
     }
   };
 
+  // 清除所有游戲記錄
+  const handleClearGameHistory = async () => {
+    if (!user) return;
+
+    if (!window.confirm('確定要清除所有游戲記錄嗎？此操作無法撤銷。')) {
+      return;
+    }
+
+    setIsClearingGames(true);
+    setError('');
+    setSuccessMessage('');
+
+    try {
+      const sessionsRef = collection(db, 'gameSessions');
+      const q = query(sessionsRef, where('userId', '==', user.uid));
+      const snapshot = await getDocs(q);
+
+      const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deletePromises);
+
+      setGameStats({
+        total: 0,
+        completed: 0,
+        inProgress: 0
+      });
+      setSuccessMessage('已清除所有游戲記錄');
+    } catch (error) {
+      console.error('清除游戲記錄失敗:', error);
+      setError('清除游戲記錄時發生錯誤');
+    } finally {
+      setIsClearingGames(false);
+    }
+  };
+
   if (!user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -585,6 +661,32 @@ export default function ProfilePage() {
 
         {/* reCAPTCHA 容器 */}
         <div id="recaptcha-container" className="hidden"></div>
+
+        {/* 游戲統計和清除功能 */}
+        <div className="bg-white shadow rounded-lg p-6 mb-6">
+          <h2 className="text-lg font-medium text-gray-900 mb-4">游戲記錄</h2>
+          <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="bg-indigo-50 rounded-lg p-4">
+              <p className="text-sm text-indigo-600">總游戲數</p>
+              <p className="text-2xl font-bold text-indigo-700">{gameStats.total}</p>
+            </div>
+            <div className="bg-green-50 rounded-lg p-4">
+              <p className="text-sm text-green-600">已完成</p>
+              <p className="text-2xl font-bold text-green-700">{gameStats.completed}</p>
+            </div>
+            <div className="bg-yellow-50 rounded-lg p-4">
+              <p className="text-sm text-yellow-600">進行中</p>
+              <p className="text-2xl font-bold text-yellow-700">{gameStats.inProgress}</p>
+            </div>
+          </div>
+          <button
+            onClick={handleClearGameHistory}
+            disabled={isClearingGames || gameStats.total === 0}
+            className="w-full px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isClearingGames ? '清除中...' : '清除所有游戲記錄'}
+          </button>
+        </div>
       </div>
     </div>
   );

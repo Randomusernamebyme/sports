@@ -8,6 +8,7 @@ import Image from 'next/image';
 import Map from '@/components/Map';
 import Camera from '@/components/Camera';
 import { useGameProgress } from '@/lib/hooks/useGameProgress';
+import { useRouter } from 'next/navigation';
 
 interface Task {
   id: string;
@@ -57,6 +58,7 @@ export default function PlayPage() {
     completeGameSession,
     updateTaskStatus 
   } = useGameProgress(id as string);
+  const router = useRouter();
 
   useEffect(() => {
     if (script) {
@@ -313,6 +315,7 @@ export default function PlayPage() {
         if (allTasksCompleted && gameSession) {
           // 完成遊戲並跳轉到完成頁面
           completeGameSession(gameSession.id, gameSession.score);
+          router.push(`/events/${id}/complete/${gameSession.id}`);
         }
 
         return updatedTasks;
