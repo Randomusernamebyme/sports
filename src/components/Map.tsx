@@ -41,6 +41,18 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
   const [taskMarkers, setTaskMarkers] = useState<google.maps.marker.AdvancedMarkerElement[]>([]);
   const [isApiLoaded, setIsApiLoaded] = useState(false);
 
+  // 創建標記元素的輔助函數
+  const createMarkerDiv = (color: string, size = 20) => {
+    const div = document.createElement('div');
+    div.style.width = `${size}px`;
+    div.style.height = `${size}px`;
+    div.style.borderRadius = '50%';
+    div.style.backgroundColor = color;
+    div.style.border = '2px solid white';
+    div.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+    return div;
+  };
+
   // 載入 Google Maps API
   useEffect(() => {
     let isMounted = true;
@@ -174,19 +186,11 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
       }
 
       // 創建新的當前位置標記
-      const currentLocationContent = document.createElement('div');
-      currentLocationContent.style.width = '16px';
-      currentLocationContent.style.height = '16px';
-      currentLocationContent.style.borderRadius = '50%';
-      currentLocationContent.style.backgroundColor = '#3B82F6';
-      currentLocationContent.style.border = '2px solid white';
-      currentLocationContent.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
-      
       const newCurrentLocationMarker = new window.google.maps.marker.AdvancedMarkerElement({
         position,
         map: mapInstanceRef.current,
         title: '您的位置',
-        content: currentLocationContent
+        content: createMarkerDiv('#3B82F6', 20)
       });
 
       if (isMounted) {
@@ -224,20 +228,11 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
 
           const taskPosition = { lat, lng };
           
-          // 為每個標記創建獨立的 content div
-          const taskContent = document.createElement('div');
-          taskContent.style.width = '12px';
-          taskContent.style.height = '12px';
-          taskContent.style.borderRadius = '50%';
-          taskContent.style.backgroundColor = task.isCompleted ? '#10B981' : '#6366F1';
-          taskContent.style.border = '2px solid white';
-          taskContent.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
-          
           const marker = new window.google.maps.marker.AdvancedMarkerElement({
             position: taskPosition,
             map: mapInstanceRef.current,
             title: task.title,
-            content: taskContent
+            content: createMarkerDiv(task.isCompleted ? '#10B981' : '#6366F1', 16)
           });
 
           marker.addEventListener('gmp-click', () => {
