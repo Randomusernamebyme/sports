@@ -28,7 +28,8 @@ interface MapProps {
 const mapContainerStyle = {
   width: '100%',
   height: '100%',
-  minHeight: '400px'
+  minHeight: '250px',
+  maxHeight: '40vh'
 };
 
 const defaultCenter = {

@@ -289,8 +289,8 @@ export default function PlayPage() {
       await updateTaskStatus(selectedTask.id, 'completed');
 
       // 更新本地任務狀態
-      setTasks(prevTasks => 
-        prevTasks.map(task => {
+      setTasks(prevTasks => {
+        const updatedTasks = prevTasks.map(task => {
           if (task.id === selectedTask.id) {
             return {
               ...task,
@@ -306,8 +306,17 @@ export default function PlayPage() {
             };
           }
           return task;
-        })
-      );
+        });
+
+        // 檢查是否所有任務都已完成
+        const allTasksCompleted = updatedTasks.every(task => task.isCompleted);
+        if (allTasksCompleted && gameSession) {
+          // 完成遊戲並跳轉到完成頁面
+          completeGameSession(gameSession.id, gameSession.score);
+        }
+
+        return updatedTasks;
+      });
 
       // 重置狀態
       setSelectedTask(null);
@@ -345,67 +354,121 @@ export default function PlayPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="flex flex-col h-screen">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="flex flex-col h-[100dvh]">
           {/* 頂部導航欄 */}
-          <div className="bg-white shadow-sm p-4 flex items-center justify-between">
-            <h1 className="text-xl font-bold">任務進度</h1>
-            <span className="text-sm text-gray-500">已完成 {tasks.filter(t => t.isCompleted).length}/{tasks.length}</span>
+          <div className="bg-white shadow-sm p-4 flex items-center justify-between sticky top-0 z-10">
+            <div className="flex items-center space-x-4">
+              <h1 className="text-xl font-bold">{script.title || '任務進度'}</h1>
+              <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                已完成 {tasks.filter(t => t.isCompleted).length}/{tasks.length}
+              </span>
+            </div>
+            {locationError && (
+              <span className="text-sm text-red-500">{locationError}</span>
+            )}
           </div>
 
-          {/* 主要內容區域 - 使用 grid 佈局 */}
-          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 overflow-hidden">
+          {/* 主要內容區域 - 使用 flex-col 在手機版上垂直排列 */}
+          <div className="flex-1 flex flex-col md:grid md:grid-cols-2 gap-4 overflow-hidden">
             {/* 地圖區域 */}
-            <div className="relative h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)]">
+            <div className="h-[40vh] md:h-[calc(100dvh-5rem)] relative">
               <Map
                 currentLocation={currentLocation}
                 tasks={tasks}
                 onTaskClick={handleTaskClick}
               />
+              {!locationPermissionGranted && (
+                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                  <div className="bg-white p-4 rounded-lg text-center">
+                    <p className="text-gray-600 mb-2">需要位置權限才能進行遊戲</p>
+                    <button
+                      onClick={() => window.location.reload()}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                    >
+                      重新授權
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 任務列表區域 - 可滾動 */}
-            <div className="bg-white overflow-y-auto h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)]">
+            <div className="flex-1 bg-white overflow-y-auto rounded-lg shadow-sm">
               <div className="p-4 space-y-4">
                 {tasks.map((task) => (
                   <div
                     key={task.id}
-                    className={`p-4 rounded-lg border ${
+                    className={`p-4 rounded-lg border transition-all duration-200 ${
                       task.status === 'success'
                         ? 'bg-green-50 border-green-200'
                         : task.status === 'failed'
                         ? 'bg-red-50 border-red-200'
                         : task.isUnlocked
-                        ? 'bg-white border-gray-200 hover:border-indigo-300 cursor-pointer'
+                        ? 'bg-white border-gray-200 hover:border-indigo-300 hover:shadow-md cursor-pointer'
                         : 'bg-gray-50 border-gray-200 opacity-50'
                     }`}
                     onClick={() => task.isUnlocked && handleTaskClick(task.id)}
                   >
                     <div className="flex items-center justify-between">
                       <h3 className="font-medium">{task.title}</h3>
-                      {task.status === 'success' ? (
-                        <span className="text-green-600">✓ 已完成</span>
-                      ) : task.status === 'failed' ? (
-                        <span className="text-red-600">✗ 失敗</span>
-                      ) : task.isUnlocked ? (
-                        <span className="text-indigo-600">可進行</span>
-                      ) : (
-                        <span className="text-gray-500">未解鎖</span>
-                      )}
+                      <div className="flex items-center space-x-2">
+                        {task.status === 'success' ? (
+                          <span className="text-green-600 flex items-center">
+                            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            已完成
+                          </span>
+                        ) : task.status === 'failed' ? (
+                          <span className="text-red-600 flex items-center">
+                            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                            失敗
+                          </span>
+                        ) : task.isUnlocked ? (
+                          <span className="text-indigo-600 flex items-center">
+                            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                            </svg>
+                            可進行
+                          </span>
+                        ) : (
+                          <span className="text-gray-500 flex items-center">
+                            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            未解鎖
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <p className="mt-2 text-sm text-gray-600">{task.description}</p>
                     {task.distance && (
-                      <p className="mt-1 text-xs text-gray-500">
+                      <div className="mt-2 flex items-center text-xs text-gray-500">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
                         距離：{formatDistance(task.distance)}
                         {task.distance > MAX_DISTANCE && task.isUnlocked && (
-                          <span className="text-red-500 ml-2">
-                            （需要更靠近，至少在1公里內）
+                          <span className="text-red-500 ml-2 flex items-center">
+                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            需要更靠近（至少在1公里內）
                           </span>
                         )}
-                      </p>
+                      </div>
                     )}
                     {task.errorMessage && (
-                      <p className="mt-1 text-xs text-red-500">{task.errorMessage}</p>
+                      <p className="mt-2 text-xs text-red-500 flex items-center">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {task.errorMessage}
+                      </p>
                     )}
                   </div>
                 ))}
