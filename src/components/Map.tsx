@@ -168,9 +168,6 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
       if (currentLocationMarker) {
         try {
           currentLocationMarker.map = null;
-          if (currentLocationMarker.content) {
-            (currentLocationMarker.content as HTMLElement).remove();
-          }
         } catch (error) {
           console.error('Error removing old current location marker:', error);
         }
@@ -178,7 +175,12 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
 
       // 創建新的當前位置標記
       const currentLocationContent = document.createElement('div');
-      currentLocationContent.className = 'w-4 h-4 bg-blue-500 rounded-full border-2 border-white';
+      currentLocationContent.style.width = '16px';
+      currentLocationContent.style.height = '16px';
+      currentLocationContent.style.borderRadius = '50%';
+      currentLocationContent.style.backgroundColor = '#3B82F6';
+      currentLocationContent.style.border = '2px solid white';
+      currentLocationContent.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
       
       const newCurrentLocationMarker = new window.google.maps.marker.AdvancedMarkerElement({
         position,
@@ -195,9 +197,6 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
       taskMarkers.forEach(marker => {
         try {
           marker.map = null;
-          if (marker.content) {
-            (marker.content as HTMLElement).remove();
-          }
         } catch (error) {
           console.error('Error removing old task marker:', error);
         }
@@ -227,9 +226,12 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
           
           // 為每個標記創建獨立的 content div
           const taskContent = document.createElement('div');
-          taskContent.className = `w-3 h-3 rounded-full border-2 border-white ${
-            task.isCompleted ? 'bg-green-500' : 'bg-indigo-500'
-          }`;
+          taskContent.style.width = '12px';
+          taskContent.style.height = '12px';
+          taskContent.style.borderRadius = '50%';
+          taskContent.style.backgroundColor = task.isCompleted ? '#10B981' : '#6366F1';
+          taskContent.style.border = '2px solid white';
+          taskContent.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
           
           const marker = new window.google.maps.marker.AdvancedMarkerElement({
             position: taskPosition,
@@ -270,9 +272,6 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
       if (currentLocationMarker) {
         try {
           currentLocationMarker.map = null;
-          if (currentLocationMarker.content) {
-            (currentLocationMarker.content as HTMLElement).remove();
-          }
         } catch (error) {
           console.error('Error removing current location marker:', error);
         }
@@ -281,9 +280,6 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
       taskMarkers.forEach(marker => {
         try {
           marker.map = null;
-          if (marker.content) {
-            (marker.content as HTMLElement).remove();
-          }
         } catch (error) {
           console.error('Error removing task marker:', error);
         }
