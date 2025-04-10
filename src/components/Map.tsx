@@ -37,8 +37,8 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
   const mapInstanceRef = useRef<any>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
-  const [currentLocationMarker, setCurrentLocationMarker] = useState<google.maps.Marker | null>(null);
-  const [taskMarkers, setTaskMarkers] = useState<google.maps.Marker[]>([]);
+  const [currentLocationMarker, setCurrentLocationMarker] = useState<google.maps.marker.AdvancedMarkerElement | null>(null);
+  const [taskMarkers, setTaskMarkers] = useState<google.maps.marker.AdvancedMarkerElement[]>([]);
   const [isApiLoaded, setIsApiLoaded] = useState(false);
 
   // 載入 Google Maps API
@@ -47,7 +47,6 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
 
     const loadGoogleMapsApi = async () => {
       try {
-        // 檢查API密鑰
         const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
         if (!apiKey) {
           if (isMounted) {
@@ -56,7 +55,6 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
           return;
         }
 
-        // 如果已經載入，直接返回
         if (window.google?.maps) {
           if (isMounted) {
             setIsApiLoaded(true);
@@ -64,11 +62,10 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
           return;
         }
 
-        // 使用 Loader 載入 Google Maps API
         const loader = new Loader({
           apiKey,
           version: 'weekly',
-          libraries: ['places'],
+          libraries: ['places', 'marker'],
           retries: 3,
           language: 'zh-TW',
           region: 'HK'
@@ -101,7 +98,7 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
     return () => {
       isMounted = false;
     };
-  }, []); // 只在組件掛載時載入 API
+  }, []);
 
   // 初始化地圖
   useEffect(() => {
@@ -110,9 +107,20 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
     let isMounted = true;
 
     try {
-      const defaultCenter = currentLocation || { lat: 22.2783, lng: 114.1827 }; // 香港中心點
+      const defaultCenter = { lat: 22.2783, lng: 114.1827 }; // 香港中心點
+      const center = currentLocation && 
+        !isNaN(Number(currentLocation.lat)) && 
+        !isNaN(Number(currentLocation.lng)) && 
+        Number(currentLocation.lat) !== 0 && 
+        Number(currentLocation.lng) !== 0
+        ? { 
+            lat: Number(currentLocation.lat), 
+            lng: Number(currentLocation.lng) 
+          }
+        : defaultCenter;
+
       mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
-        center: defaultCenter,
+        center,
         zoom: 15,
         mapTypeControl: false,
         fullscreenControl: false,
@@ -133,11 +141,11 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
     return () => {
       isMounted = false;
     };
-  }, [isApiLoaded, currentLocation]); // 當 API 載入完成或當前位置變化時初始化地圖
+  }, [isApiLoaded, currentLocation]);
 
   // 更新標記
   useEffect(() => {
-    if (!isMapLoaded || !mapInstanceRef.current) return;
+    if (!isMapLoaded || !mapInstanceRef.current || !window.google?.maps?.marker) return;
 
     let isMounted = true;
 
@@ -154,22 +162,28 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
           }
         : { lat: 22.2783, lng: 114.1827 };
 
+      // 創建當前位置標記的內容
+      const createCurrentLocationContent = () => {
+        const div = document.createElement('div');
+        div.className = 'current-location-marker';
+        div.style.width = '20px';
+        div.style.height = '20px';
+        div.style.borderRadius = '50%';
+        div.style.backgroundColor = '#3B82F6';
+        div.style.border = '2px solid white';
+        div.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+        return div;
+      };
+
       // 更新或創建當前位置標記
       if (currentLocationMarker) {
-        currentLocationMarker.setPosition(position);
+        currentLocationMarker.position = position;
       } else {
-        const marker = new window.google.maps.Marker({
+        const marker = new window.google.maps.marker.AdvancedMarkerElement({
           position,
           map: mapInstanceRef.current,
           title: '您的位置',
-          icon: {
-            path: window.google.maps.SymbolPath.CIRCLE,
-            scale: 10,
-            fillColor: '#3B82F6',
-            fillOpacity: 1,
-            strokeColor: '#FFFFFF',
-            strokeWeight: 2
-          }
+          content: createCurrentLocationContent()
         });
         if (isMounted) {
           setCurrentLocationMarker(marker);
@@ -178,10 +192,12 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
 
       // 更新任務標記
       taskMarkers.forEach(marker => {
-        marker.setMap(null);
+        if (marker.map) {
+          marker.map = null;
+        }
       });
       
-      const newTaskMarkers: google.maps.Marker[] = [];
+      const newTaskMarkers: google.maps.marker.AdvancedMarkerElement[] = [];
       tasks.forEach(task => {
         if (!task.location?.coordinates) return;
 
@@ -194,18 +210,25 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
         }
 
         const taskPosition = { lat, lng };
-        const marker = new window.google.maps.Marker({
+        
+        // 創建任務標記的內容
+        const createTaskContent = () => {
+          const div = document.createElement('div');
+          div.className = 'task-marker';
+          div.style.width = '16px';
+          div.style.height = '16px';
+          div.style.borderRadius = '50%';
+          div.style.backgroundColor = task.isCompleted ? '#10B981' : '#6366F1';
+          div.style.border = '2px solid white';
+          div.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+          return div;
+        };
+
+        const marker = new window.google.maps.marker.AdvancedMarkerElement({
           position: taskPosition,
           map: mapInstanceRef.current,
           title: task.title,
-          icon: {
-            path: window.google.maps.SymbolPath.CIRCLE,
-            scale: 8,
-            fillColor: task.isCompleted ? '#10B981' : '#6366F1',
-            fillOpacity: 1,
-            strokeColor: '#FFFFFF',
-            strokeWeight: 2
-          }
+          content: createTaskContent()
         });
 
         marker.addListener('click', () => {
@@ -237,10 +260,12 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
     return () => {
       // 清除所有標記
       if (currentLocationMarker) {
-        currentLocationMarker.setMap(null);
+        currentLocationMarker.map = null;
       }
       taskMarkers.forEach(marker => {
-        marker.setMap(null);
+        if (marker.map) {
+          marker.map = null;
+        }
       });
     };
   }, [currentLocationMarker, taskMarkers]);
