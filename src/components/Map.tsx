@@ -39,6 +39,7 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [currentLocationMarker, setCurrentLocationMarker] = useState<google.maps.Marker | null>(null);
+  const [taskMarkers, setTaskMarkers] = useState<google.maps.Marker[]>([]);
 
   useEffect(() => {
     const initializeMap = async () => {
@@ -111,9 +112,9 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
     };
   }, []); // 只在組件掛載時初始化一次
 
-  // 更新地圖中心點
+  // 初始化地圖
   useEffect(() => {
-    if (!isMapLoaded || !mapInstanceRef.current || !currentLocation || mapError) return;
+    if (!isMapLoaded || !mapInstanceRef.current || !currentLocation) return;
 
     try {
       const lat = Number(currentLocation.lat);
@@ -127,6 +128,27 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
 
       const position = { lat, lng };
       mapInstanceRef.current.setCenter(position);
+    } catch (error) {
+      console.error('Error updating map center:', error);
+      setMapError('更新地圖中心點時發生錯誤');
+    }
+  }, [isMapLoaded, currentLocation, mapError]);
+
+  // 更新當前位置標記
+  useEffect(() => {
+    if (!isMapLoaded || !mapInstanceRef.current || !currentLocation) return;
+
+    try {
+      const lat = Number(currentLocation.lat);
+      const lng = Number(currentLocation.lng);
+
+      // 確保座標是有效的數字
+      if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) {
+        console.error('無效的當前位置座標:', currentLocation);
+        return;
+      }
+
+      const position = { lat, lng };
 
       // 更新或創建當前位置標記
       if (currentLocationMarker) {
@@ -148,25 +170,26 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
         setCurrentLocationMarker(marker);
       }
     } catch (error) {
-      console.error('Error updating map center:', error);
-      setMapError('更新地圖中心點時發生錯誤');
+      console.error('Error updating current location marker:', error);
+      setMapError('更新當前位置標記時發生錯誤');
     }
   }, [isMapLoaded, currentLocation, mapError, currentLocationMarker]);
 
   // 更新任務標記
   useEffect(() => {
-    if (!isMapLoaded || !mapInstanceRef.current || mapError) return;
+    if (!isMapLoaded || !mapInstanceRef.current || !currentLocation) return;
 
     try {
       // 清除舊的標記
-      markersRef.current.slice(1).forEach(marker => {
+      taskMarkers.forEach(marker => {
         if (marker && typeof marker.setMap === 'function') {
           marker.setMap(null);
         }
       });
-      markersRef.current = [markersRef.current[0]]; // 保留當前位置標記
+      setTaskMarkers([]);
 
       // 添加新的標記
+      const newTaskMarkers: google.maps.Marker[] = [];
       tasks.forEach(task => {
         if (!task.location?.coordinates) return;
 
@@ -195,16 +218,44 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
         });
 
         marker.addListener('click', () => {
-          onTaskClick(task.id);
+          if (onTaskClick) {
+            onTaskClick(task.id);
+          }
         });
 
-        markersRef.current.push(marker);
+        newTaskMarkers.push(marker);
       });
+
+      setTaskMarkers(newTaskMarkers);
     } catch (error) {
       console.error('Error updating task markers:', error);
       setMapError('更新任務標記時發生錯誤');
     }
-  }, [isMapLoaded, tasks, mapError, onTaskClick]);
+  }, [isMapLoaded, tasks, currentLocation, onTaskClick]);
+
+  // 清理函數
+  useEffect(() => {
+    return () => {
+      // 安全地清理標記
+      if (currentLocationMarker) {
+        try {
+          currentLocationMarker.setMap(null);
+        } catch (error) {
+          console.error('Error cleaning up current location marker:', error);
+        }
+      }
+      
+      taskMarkers.forEach(marker => {
+        try {
+          if (marker && typeof marker.setMap === 'function') {
+            marker.setMap(null);
+          }
+        } catch (error) {
+          console.error('Error cleaning up task marker:', error);
+        }
+      });
+    };
+  }, [currentLocationMarker, taskMarkers]);
 
   if (mapError) {
     return (
