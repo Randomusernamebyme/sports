@@ -65,7 +65,7 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
         const loader = new Loader({
           apiKey,
           version: 'weekly',
-          libraries: ['places'],
+          libraries: ['places', 'marker'],
           retries: 3,
           language: 'zh-TW',
           region: 'HK'
@@ -104,7 +104,7 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
 
   // 初始化地圖
   useEffect(() => {
-    if (!isApiLoaded || !mapRef.current || !window.google?.maps) return;
+    if (!isApiLoaded || !mapRef.current || !window.google?.maps?.marker) return;
 
     let isMounted = true;
 
@@ -147,7 +147,7 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
 
   // 更新標記
   useEffect(() => {
-    if (!isMapLoaded || !mapInstanceRef.current || !window.google?.maps) return;
+    if (!isMapLoaded || !mapInstanceRef.current || !window.google?.maps?.marker) return;
 
     let isMounted = true;
 
