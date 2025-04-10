@@ -114,41 +114,46 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
 
   // 初始化地圖
   useEffect(() => {
-    if (!isMapLoaded || !mapInstanceRef.current || !currentLocation) return;
+    if (!isMapLoaded || !mapInstanceRef.current) return;
 
     try {
-      const lat = Number(currentLocation.lat);
-      const lng = Number(currentLocation.lng);
+      // 使用預設座標（香港中心點）或當前位置
+      const defaultCenter = { lat: 22.2783, lng: 114.1827 };
+      const position = currentLocation && 
+        !isNaN(Number(currentLocation.lat)) && 
+        !isNaN(Number(currentLocation.lng)) && 
+        Number(currentLocation.lat) !== 0 && 
+        Number(currentLocation.lng) !== 0
+        ? { 
+            lat: Number(currentLocation.lat), 
+            lng: Number(currentLocation.lng) 
+          }
+        : defaultCenter;
 
-      // 確保座標是有效的數字
-      if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) {
-        console.error('無效的當前位置座標:', currentLocation);
-        return;
-      }
-
-      const position = { lat, lng };
       mapInstanceRef.current.setCenter(position);
     } catch (error) {
       console.error('Error updating map center:', error);
       setMapError('更新地圖中心點時發生錯誤');
     }
-  }, [isMapLoaded, currentLocation, mapError]);
+  }, [isMapLoaded, currentLocation]);
 
   // 更新當前位置標記
   useEffect(() => {
-    if (!isMapLoaded || !mapInstanceRef.current || !currentLocation) return;
+    if (!isMapLoaded || !mapInstanceRef.current) return;
 
     try {
-      const lat = Number(currentLocation.lat);
-      const lng = Number(currentLocation.lng);
-
-      // 確保座標是有效的數字
-      if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) {
-        console.error('無效的當前位置座標:', currentLocation);
-        return;
-      }
-
-      const position = { lat, lng };
+      // 使用預設座標（香港中心點）或當前位置
+      const defaultCenter = { lat: 22.2783, lng: 114.1827 };
+      const position = currentLocation && 
+        !isNaN(Number(currentLocation.lat)) && 
+        !isNaN(Number(currentLocation.lng)) && 
+        Number(currentLocation.lat) !== 0 && 
+        Number(currentLocation.lng) !== 0
+        ? { 
+            lat: Number(currentLocation.lat), 
+            lng: Number(currentLocation.lng) 
+          }
+        : defaultCenter;
 
       // 更新或創建當前位置標記
       if (currentLocationMarker) {
@@ -173,17 +178,21 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
       console.error('Error updating current location marker:', error);
       setMapError('更新當前位置標記時發生錯誤');
     }
-  }, [isMapLoaded, currentLocation, mapError, currentLocationMarker]);
+  }, [isMapLoaded, currentLocation, currentLocationMarker]);
 
   // 更新任務標記
   useEffect(() => {
-    if (!isMapLoaded || !mapInstanceRef.current || !currentLocation) return;
+    if (!isMapLoaded || !mapInstanceRef.current) return;
 
     try {
-      // 清除舊的標記
+      // 安全地清除舊的標記
       taskMarkers.forEach(marker => {
-        if (marker && typeof marker.setMap === 'function') {
-          marker.setMap(null);
+        try {
+          if (marker && typeof marker.setMap === 'function') {
+            marker.setMap(null);
+          }
+        } catch (error) {
+          console.error('Error removing task marker:', error);
         }
       });
       setTaskMarkers([]);
@@ -231,7 +240,7 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
       console.error('Error updating task markers:', error);
       setMapError('更新任務標記時發生錯誤');
     }
-  }, [isMapLoaded, tasks, currentLocation, onTaskClick]);
+  }, [isMapLoaded, tasks, onTaskClick]);
 
   // 清理函數
   useEffect(() => {
