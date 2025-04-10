@@ -188,7 +188,7 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
       // 安全地清除舊的標記
       taskMarkers.forEach(marker => {
         try {
-          if (marker && typeof marker.setMap === 'function') {
+          if (marker && typeof marker.setMap === 'function' && marker.getMap()) {
             marker.setMap(null);
           }
         } catch (error) {
@@ -248,7 +248,9 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
       // 安全地清理標記
       if (currentLocationMarker) {
         try {
-          currentLocationMarker.setMap(null);
+          if (currentLocationMarker.getMap()) {
+            currentLocationMarker.setMap(null);
+          }
         } catch (error) {
           console.error('Error cleaning up current location marker:', error);
         }
@@ -256,7 +258,7 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
       
       taskMarkers.forEach(marker => {
         try {
-          if (marker && typeof marker.setMap === 'function') {
+          if (marker && typeof marker.setMap === 'function' && marker.getMap()) {
             marker.setMap(null);
           }
         } catch (error) {
