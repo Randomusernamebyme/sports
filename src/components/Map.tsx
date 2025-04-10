@@ -162,17 +162,16 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
           }
         : { lat: 22.2783, lng: 114.1827 };
 
-      // 創建當前位置標記的內容
+      // 創建當前位置標記的內容 - 使用 HTML 字串
       const createCurrentLocationContent = () => {
-        const div = document.createElement('div');
-        div.className = 'current-location-marker';
-        div.style.width = '20px';
-        div.style.height = '20px';
-        div.style.borderRadius = '50%';
-        div.style.backgroundColor = '#3B82F6';
-        div.style.border = '2px solid white';
-        div.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
-        return div;
+        return `<div style="
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          background-color: #3B82F6;
+          border: 2px solid white;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        "></div>`;
       };
 
       // 安全地移除舊的當前位置標記
@@ -224,17 +223,16 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
 
         const taskPosition = { lat, lng };
         
-        // 創建任務標記的內容
+        // 創建任務標記的內容 - 使用 HTML 字串
         const createTaskContent = () => {
-          const div = document.createElement('div');
-          div.className = 'task-marker';
-          div.style.width = '16px';
-          div.style.height = '16px';
-          div.style.borderRadius = '50%';
-          div.style.backgroundColor = task.isCompleted ? '#10B981' : '#6366F1';
-          div.style.border = '2px solid white';
-          div.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
-          return div;
+          return `<div style="
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background-color: ${task.isCompleted ? '#10B981' : '#6366F1'};
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+          "></div>`;
         };
 
         const marker = new window.google.maps.marker.AdvancedMarkerElement({
