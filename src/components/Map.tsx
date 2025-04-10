@@ -38,6 +38,7 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
   const markersRef = useRef<any[]>([]);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [currentLocationMarker, setCurrentLocationMarker] = useState<google.maps.Marker | null>(null);
 
   useEffect(() => {
     const initializeMap = async () => {
@@ -115,51 +116,49 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
     if (!isMapLoaded || !mapInstanceRef.current || !currentLocation || mapError) return;
 
     try {
-      mapInstanceRef.current.setCenter(currentLocation);
+      const lat = Number(currentLocation.lat);
+      const lng = Number(currentLocation.lng);
+
+      // 確保座標是有效的數字
+      if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) {
+        console.error('無效的當前位置座標:', currentLocation);
+        return;
+      }
+
+      const position = { lat, lng };
+      mapInstanceRef.current.setCenter(position);
+
+      // 更新或創建當前位置標記
+      if (currentLocationMarker) {
+        currentLocationMarker.setPosition(position);
+      } else {
+        const marker = new window.google.maps.Marker({
+          position,
+          map: mapInstanceRef.current,
+          title: '您的位置',
+          icon: {
+            path: window.google.maps.SymbolPath.CIRCLE,
+            scale: 10,
+            fillColor: '#3B82F6',
+            fillOpacity: 1,
+            strokeColor: '#FFFFFF',
+            strokeWeight: 2
+          }
+        });
+        setCurrentLocationMarker(marker);
+      }
     } catch (error) {
       console.error('Error updating map center:', error);
       setMapError('更新地圖中心點時發生錯誤');
     }
-  }, [isMapLoaded, currentLocation, mapError]);
-
-  // 更新當前位置標記
-  useEffect(() => {
-    if (!isMapLoaded || !mapInstanceRef.current || !currentLocation || mapError) return;
-
-    try {
-      // 清除舊的當前位置標記
-      if (markersRef.current[0]) {
-        markersRef.current[0].setMap(null);
-        markersRef.current.shift();
-      }
-
-      // 添加新的當前位置標記
-      const currentMarker = new window.google.maps.Marker({
-        position: currentLocation,
-        map: mapInstanceRef.current,
-        icon: {
-          path: window.google.maps.SymbolPath.CIRCLE,
-          scale: 8,
-          fillColor: '#4F46E5',
-          fillOpacity: 1,
-          strokeColor: '#FFFFFF',
-          strokeWeight: 2,
-        }
-      });
-
-      markersRef.current.unshift(currentMarker);
-    } catch (error) {
-      console.error('Error updating current location marker:', error);
-      setMapError('更新當前位置標記時發生錯誤');
-    }
-  }, [isMapLoaded, currentLocation, mapError]);
+  }, [isMapLoaded, currentLocation, mapError, currentLocationMarker]);
 
   // 更新任務標記
   useEffect(() => {
     if (!isMapLoaded || !mapInstanceRef.current || mapError) return;
 
     try {
-      // 清除任務標記
+      // 清除舊的標記
       markersRef.current.slice(1).forEach(marker => {
         if (marker && typeof marker.setMap === 'function') {
           marker.setMap(null);
@@ -167,31 +166,31 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
       });
       markersRef.current = [markersRef.current[0]]; // 保留當前位置標記
 
-      // 添加任務標記
+      // 添加新的標記
       tasks.forEach(task => {
-        // 驗證座標
+        if (!task.location?.coordinates) return;
+
         const lat = Number(task.location.coordinates.lat || task.location.coordinates.latitude);
         const lng = Number(task.location.coordinates.lng || task.location.coordinates.longitude);
-        
-        if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+
+        // 確保座標是有效的數字
+        if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) {
           console.error('無效的座標:', task.location.coordinates);
           return;
         }
 
+        const position = { lat, lng };
         const marker = new window.google.maps.Marker({
-          position: {
-            lat,
-            lng
-          },
+          position,
           map: mapInstanceRef.current,
           title: task.title,
           icon: {
             path: window.google.maps.SymbolPath.CIRCLE,
             scale: 8,
-            fillColor: task.isCompleted ? '#10B981' : task.isUnlocked ? '#4F46E5' : '#9CA3AF',
+            fillColor: task.isCompleted ? '#10B981' : '#6366F1',
             fillOpacity: 1,
             strokeColor: '#FFFFFF',
-            strokeWeight: 2,
+            strokeWeight: 2
           }
         });
 
