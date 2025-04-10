@@ -43,6 +43,8 @@ export default function PlayPage() {
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [taskError, setTaskError] = useState<string | null>(null);
+  const [locationPermissionGranted, setLocationPermissionGranted] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const MAX_DISTANCE = 1000; // 最大允許距離（米）
   const { 
     gameSession, 
@@ -100,46 +102,50 @@ export default function PlayPage() {
       initializeTasks();
     }
 
-    // 獲取當前位置
-    if (navigator.geolocation) {
-      const options = {
-        enableHighAccuracy: true,
-        timeout: 5000,
-        maximumAge: 0
-      };
-
-      const watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          setCurrentLocation({
-            lat: latitude,
-            lng: longitude
-          });
-        },
-        (error) => {
-          console.error('位置追蹤錯誤:', error);
-          switch(error.code) {
-            case error.PERMISSION_DENIED:
-              alert('請允許位置權限以繼續遊戲');
-              break;
-            case error.POSITION_UNAVAILABLE:
-              alert('無法獲取位置信息，請確保GPS已開啟');
-              break;
-            case error.TIMEOUT:
-              alert('獲取位置超時，請檢查網絡連接');
-              break;
-            default:
-              alert('獲取位置時發生錯誤');
+    if (typeof window !== 'undefined') {
+      // 檢查位置權限
+      navigator.permissions.query({ name: 'geolocation' })
+        .then(permissionStatus => {
+          if (permissionStatus.state === 'granted') {
+            setLocationPermissionGranted(true);
+            // 如果已經有權限，立即獲取位置
+            navigator.geolocation.getCurrentPosition(
+              (position) => {
+                setCurrentLocation({
+                  lat: position.coords.latitude,
+                  lng: position.coords.longitude
+                });
+              },
+              (error) => {
+                console.error('獲取位置失敗:', error);
+                setLocationError('無法獲取位置，請確保已開啟位置服務');
+              }
+            );
+          } else if (permissionStatus.state === 'prompt') {
+            // 請求位置權限
+            navigator.geolocation.getCurrentPosition(
+              (position) => {
+                setLocationPermissionGranted(true);
+                setCurrentLocation({
+                  lat: position.coords.latitude,
+                  lng: position.coords.longitude
+                });
+              },
+              (error) => {
+                console.error('位置權限被拒絕:', error);
+                setLocationPermissionGranted(false);
+                setLocationError('請允許使用位置權限以繼續遊戲');
+              }
+            );
+          } else {
+            setLocationPermissionGranted(false);
+            setLocationError('請在瀏覽器設定中允許使用位置權限');
           }
-        },
-        options
-      );
-
-      return () => {
-        navigator.geolocation.clearWatch(watchId);
-      };
-    } else {
-      alert('您的瀏覽器不支持位置服務，無法進行遊戲');
+        })
+        .catch(error => {
+          console.error('檢查位置權限失敗:', error);
+          setLocationError('無法檢查位置權限，請確保瀏覽器支援位置服務');
+        });
     }
   }, [script, gameSession]);
 
