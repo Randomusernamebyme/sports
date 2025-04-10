@@ -157,6 +157,30 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
     };
   }, [isApiLoaded, currentLocation]);
 
+  // 清理函數
+  useEffect(() => {
+    return () => {
+      // 安全地清除所有標記
+      if (currentLocationMarker && currentLocationMarker.map) {
+        try {
+          currentLocationMarker.map = null;
+        } catch (error) {
+          console.error('Error removing current location marker:', error);
+        }
+      }
+      
+      taskMarkers.forEach(marker => {
+        if (marker && marker.map) {
+          try {
+            marker.map = null;
+          } catch (error) {
+            console.error('Error removing task marker:', error);
+          }
+        }
+      });
+    };
+  }, [currentLocationMarker, taskMarkers]);
+
   // 更新標記
   useEffect(() => {
     if (!isMapLoaded || !mapInstanceRef.current || !window.google?.maps?.marker) return;
@@ -177,7 +201,7 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
         : { lat: 22.2783, lng: 114.1827 };
 
       // 安全地移除舊的當前位置標記
-      if (currentLocationMarker) {
+      if (currentLocationMarker && currentLocationMarker.map) {
         try {
           currentLocationMarker.map = null;
         } catch (error) {
@@ -199,10 +223,12 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
 
       // 安全地移除所有舊的任務標記
       taskMarkers.forEach(marker => {
-        try {
-          marker.map = null;
-        } catch (error) {
-          console.error('Error removing old task marker:', error);
+        if (marker && marker.map) {
+          try {
+            marker.map = null;
+          } catch (error) {
+            console.error('Error removing old task marker:', error);
+          }
         }
       });
       
@@ -259,28 +285,6 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
       isMounted = false;
     };
   }, [isMapLoaded, currentLocation, tasks, onTaskClick]);
-
-  // 清理函數
-  useEffect(() => {
-    return () => {
-      // 安全地清除所有標記
-      if (currentLocationMarker) {
-        try {
-          currentLocationMarker.map = null;
-        } catch (error) {
-          console.error('Error removing current location marker:', error);
-        }
-      }
-      
-      taskMarkers.forEach(marker => {
-        try {
-          marker.map = null;
-        } catch (error) {
-          console.error('Error removing task marker:', error);
-        }
-      });
-    };
-  }, [currentLocationMarker, taskMarkers]);
 
   if (mapError) {
     return (
