@@ -231,7 +231,8 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
           content: createTaskContent()
         });
 
-        marker.addListener('click', () => {
+        // 使用 gmp-click 事件而不是 click 事件
+        marker.addEventListener('gmp-click', () => {
           if (onTaskClick) {
             onTaskClick(task.id);
           }
@@ -260,11 +261,20 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
     return () => {
       // 清除所有標記
       if (currentLocationMarker) {
-        currentLocationMarker.map = null;
+        try {
+          currentLocationMarker.map = null;
+        } catch (error) {
+          console.error('Error removing current location marker:', error);
+        }
       }
+      
       taskMarkers.forEach(marker => {
-        if (marker.map) {
-          marker.map = null;
+        try {
+          if (marker && marker.map) {
+            marker.map = null;
+          }
+        } catch (error) {
+          console.error('Error removing task marker:', error);
         }
       });
     };
