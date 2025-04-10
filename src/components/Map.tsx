@@ -175,28 +175,41 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
         return div;
       };
 
-      // 更新或創建當前位置標記
+      // 安全地移除舊的當前位置標記
       if (currentLocationMarker) {
-        currentLocationMarker.position = position;
-      } else {
-        const marker = new window.google.maps.marker.AdvancedMarkerElement({
-          position,
-          map: mapInstanceRef.current,
-          title: '您的位置',
-          content: createCurrentLocationContent()
-        });
-        if (isMounted) {
-          setCurrentLocationMarker(marker);
+        try {
+          if (currentLocationMarker.map) {
+            currentLocationMarker.map = null;
+          }
+        } catch (error) {
+          console.error('Error removing old current location marker:', error);
         }
       }
 
-      // 更新任務標記
+      // 創建新的當前位置標記
+      const newCurrentLocationMarker = new window.google.maps.marker.AdvancedMarkerElement({
+        position,
+        map: mapInstanceRef.current,
+        title: '您的位置',
+        content: createCurrentLocationContent()
+      });
+
+      if (isMounted) {
+        setCurrentLocationMarker(newCurrentLocationMarker);
+      }
+
+      // 安全地移除所有舊的任務標記
       taskMarkers.forEach(marker => {
-        if (marker && marker.map) {
-          marker.map = null;
+        try {
+          if (marker && marker.map) {
+            marker.map = null;
+          }
+        } catch (error) {
+          console.error('Error removing old task marker:', error);
         }
       });
       
+      // 創建新的任務標記
       const newTaskMarkers: google.maps.marker.AdvancedMarkerElement[] = [];
       tasks.forEach(task => {
         if (!task.location?.coordinates) return;
@@ -254,7 +267,7 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
     return () => {
       isMounted = false;
     };
-  }, [isMapLoaded, currentLocation, tasks, onTaskClick, currentLocationMarker, taskMarkers]);
+  }, [isMapLoaded, currentLocation, tasks, onTaskClick]);
 
   // 清理函數
   useEffect(() => {
