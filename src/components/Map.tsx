@@ -42,18 +42,25 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
 
   // 初始化地圖
   useEffect(() => {
+    let isMounted = true;
+
     const initializeMap = async () => {
       try {
         // 檢查API密鑰
         const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
         if (!apiKey) {
-          setMapError('Google Maps API密鑰未設置，請聯繫管理員');
+          if (isMounted) {
+            setMapError('Google Maps API密鑰未設置，請聯繫管理員');
+          }
           return;
         }
 
-        // 如果已經載入，直接返回
+        // 如果已經載入，直接初始化地圖
         if (window.google?.maps) {
-          setIsMapLoaded(true);
+          if (isMounted) {
+            setIsMapLoaded(true);
+          }
+          initializeMapInstance();
           return;
         }
 
@@ -68,21 +75,13 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
         });
 
         await loader.load();
-        setIsMapLoaded(true);
-        setMapError(null);
-
-        // 初始化地圖
-        if (mapRef.current) {
-          const defaultCenter = currentLocation || { lat: 22.2783, lng: 114.1827 }; // 香港中心點
-          mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
-            center: defaultCenter,
-            zoom: 15,
-            mapTypeControl: false,
-            fullscreenControl: false,
-            streetViewControl: false,
-            gestureHandling: 'greedy'
-          });
+        
+        if (isMounted) {
+          setIsMapLoaded(true);
+          setMapError(null);
         }
+        
+        initializeMapInstance();
       } catch (error: any) {
         console.error('Failed to load Google Maps:', error);
         let errorMessage = '無法載入地圖，請檢查網絡連接或重新整理頁面';
@@ -93,13 +92,130 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
           errorMessage = 'Google Maps API密鑰未設置，請聯繫管理員';
         }
         
-        setMapError(errorMessage);
+        if (isMounted) {
+          setMapError(errorMessage);
+        }
+      }
+    };
+
+    const initializeMapInstance = () => {
+      if (!mapRef.current || !window.google?.maps) return;
+
+      try {
+        const defaultCenter = currentLocation || { lat: 22.2783, lng: 114.1827 }; // 香港中心點
+        mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
+          center: defaultCenter,
+          zoom: 15,
+          mapTypeControl: false,
+          fullscreenControl: false,
+          streetViewControl: false,
+          gestureHandling: 'greedy'
+        });
+
+        // 立即更新標記
+        updateMarkers();
+      } catch (error) {
+        console.error('Error initializing map instance:', error);
+        if (isMounted) {
+          setMapError('初始化地圖時發生錯誤');
+        }
+      }
+    };
+
+    const updateMarkers = () => {
+      if (!mapInstanceRef.current) return;
+
+      try {
+        // 更新當前位置標記
+        const position = currentLocation && 
+          !isNaN(Number(currentLocation.lat)) && 
+          !isNaN(Number(currentLocation.lng)) && 
+          Number(currentLocation.lat) !== 0 && 
+          Number(currentLocation.lng) !== 0
+          ? { 
+              lat: Number(currentLocation.lat), 
+              lng: Number(currentLocation.lng) 
+            }
+          : { lat: 22.2783, lng: 114.1827 };
+
+        // 更新或創建當前位置標記
+        if (currentLocationMarker) {
+          currentLocationMarker.setPosition(position);
+        } else {
+          const marker = new window.google.maps.Marker({
+            position,
+            map: mapInstanceRef.current,
+            title: '您的位置',
+            icon: {
+              path: window.google.maps.SymbolPath.CIRCLE,
+              scale: 10,
+              fillColor: '#3B82F6',
+              fillOpacity: 1,
+              strokeColor: '#FFFFFF',
+              strokeWeight: 2
+            }
+          });
+          if (isMounted) {
+            setCurrentLocationMarker(marker);
+          }
+        }
+
+        // 更新任務標記
+        taskMarkers.forEach(marker => {
+          marker.setMap(null);
+        });
+        
+        const newTaskMarkers: google.maps.Marker[] = [];
+        tasks.forEach(task => {
+          if (!task.location?.coordinates) return;
+
+          const lat = Number(task.location.coordinates.lat || task.location.coordinates.latitude);
+          const lng = Number(task.location.coordinates.lng || task.location.coordinates.longitude);
+
+          if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) {
+            console.error('無效的座標:', task.location.coordinates);
+            return;
+          }
+
+          const taskPosition = { lat, lng };
+          const marker = new window.google.maps.Marker({
+            position: taskPosition,
+            map: mapInstanceRef.current,
+            title: task.title,
+            icon: {
+              path: window.google.maps.SymbolPath.CIRCLE,
+              scale: 8,
+              fillColor: task.isCompleted ? '#10B981' : '#6366F1',
+              fillOpacity: 1,
+              strokeColor: '#FFFFFF',
+              strokeWeight: 2
+            }
+          });
+
+          marker.addListener('click', () => {
+            if (onTaskClick) {
+              onTaskClick(task.id);
+            }
+          });
+
+          newTaskMarkers.push(marker);
+        });
+
+        if (isMounted) {
+          setTaskMarkers(newTaskMarkers);
+        }
+      } catch (error) {
+        console.error('Error updating markers:', error);
+        if (isMounted) {
+          setMapError('更新標記時發生錯誤');
+        }
       }
     };
 
     initializeMap();
 
     return () => {
+      isMounted = false;
       // 清除所有標記
       if (currentLocationMarker) {
         currentLocationMarker.setMap(null);
@@ -108,109 +224,7 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
         marker.setMap(null);
       });
     };
-  }, []); // 只在組件掛載時初始化一次
-
-  // 更新當前位置標記
-  useEffect(() => {
-    if (!isMapLoaded || !mapInstanceRef.current) return;
-
-    try {
-      // 使用預設座標（香港中心點）或當前位置
-      const defaultCenter = { lat: 22.2783, lng: 114.1827 };
-      const position = currentLocation && 
-        !isNaN(Number(currentLocation.lat)) && 
-        !isNaN(Number(currentLocation.lng)) && 
-        Number(currentLocation.lat) !== 0 && 
-        Number(currentLocation.lng) !== 0
-        ? { 
-            lat: Number(currentLocation.lat), 
-            lng: Number(currentLocation.lng) 
-          }
-        : defaultCenter;
-
-      // 更新地圖中心
-      mapInstanceRef.current.setCenter(position);
-
-      // 更新或創建當前位置標記
-      if (currentLocationMarker) {
-        currentLocationMarker.setPosition(position);
-      } else {
-        const marker = new window.google.maps.Marker({
-          position,
-          map: mapInstanceRef.current,
-          title: '您的位置',
-          icon: {
-            path: window.google.maps.SymbolPath.CIRCLE,
-            scale: 10,
-            fillColor: '#3B82F6',
-            fillOpacity: 1,
-            strokeColor: '#FFFFFF',
-            strokeWeight: 2
-          }
-        });
-        setCurrentLocationMarker(marker);
-      }
-    } catch (error) {
-      console.error('Error updating current location marker:', error);
-      setMapError('更新當前位置標記時發生錯誤');
-    }
-  }, [isMapLoaded, currentLocation, currentLocationMarker]);
-
-  // 更新任務標記
-  useEffect(() => {
-    if (!isMapLoaded || !mapInstanceRef.current) return;
-
-    try {
-      // 清除舊的標記
-      taskMarkers.forEach(marker => {
-        marker.setMap(null);
-      });
-      setTaskMarkers([]);
-
-      // 添加新的標記
-      const newTaskMarkers: google.maps.Marker[] = [];
-      tasks.forEach(task => {
-        if (!task.location?.coordinates) return;
-
-        const lat = Number(task.location.coordinates.lat || task.location.coordinates.latitude);
-        const lng = Number(task.location.coordinates.lng || task.location.coordinates.longitude);
-
-        // 確保座標是有效的數字
-        if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) {
-          console.error('無效的座標:', task.location.coordinates);
-          return;
-        }
-
-        const position = { lat, lng };
-        const marker = new window.google.maps.Marker({
-          position,
-          map: mapInstanceRef.current,
-          title: task.title,
-          icon: {
-            path: window.google.maps.SymbolPath.CIRCLE,
-            scale: 8,
-            fillColor: task.isCompleted ? '#10B981' : '#6366F1',
-            fillOpacity: 1,
-            strokeColor: '#FFFFFF',
-            strokeWeight: 2
-          }
-        });
-
-        marker.addListener('click', () => {
-          if (onTaskClick) {
-            onTaskClick(task.id);
-          }
-        });
-
-        newTaskMarkers.push(marker);
-      });
-
-      setTaskMarkers(newTaskMarkers);
-    } catch (error) {
-      console.error('Error updating task markers:', error);
-      setMapError('更新任務標記時發生錯誤');
-    }
-  }, [isMapLoaded, tasks, onTaskClick]);
+  }, [currentLocation, tasks, onTaskClick]); // 添加依賴項
 
   if (mapError) {
     return (
