@@ -38,8 +38,8 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
   const markersRef = useRef<any[]>([]);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
-  const [currentLocationMarker, setCurrentLocationMarker] = useState<google.maps.Marker | null>(null);
-  const [taskMarkers, setTaskMarkers] = useState<google.maps.Marker[]>([]);
+  const [currentLocationMarker, setCurrentLocationMarker] = useState<google.maps.marker.AdvancedMarkerElement | null>(null);
+  const [taskMarkers, setTaskMarkers] = useState<google.maps.marker.AdvancedMarkerElement[]>([]);
 
   useEffect(() => {
     const initializeMap = async () => {
@@ -61,7 +61,7 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
         const loader = new Loader({
           apiKey,
           version: 'weekly',
-          libraries: ['places'],
+          libraries: ['places', 'marker'],
           retries: 3,
           language: 'zh-TW',
           region: 'HK'
@@ -103,8 +103,12 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
       // 清除所有標記
       if (markersRef.current) {
         markersRef.current.forEach(marker => {
-          if (marker && typeof marker.setMap === 'function') {
-            marker.setMap(null);
+          try {
+            if (marker && typeof marker.setMap === 'function') {
+              marker.setMap(null);
+            }
+          } catch (error) {
+            console.error('Error cleaning up marker:', error);
           }
         });
         markersRef.current = [];
@@ -157,20 +161,25 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
 
       // 更新或創建當前位置標記
       if (currentLocationMarker) {
-        currentLocationMarker.setPosition(position);
+        try {
+          currentLocationMarker.position = position;
+        } catch (error) {
+          console.error('Error updating current location marker position:', error);
+          // 如果更新失敗，創建新的標記
+          const marker = new window.google.maps.marker.AdvancedMarkerElement({
+            position,
+            map: mapInstanceRef.current,
+            title: '您的位置',
+            content: createMarkerContent('#3B82F6', 10)
+          });
+          setCurrentLocationMarker(marker);
+        }
       } else {
-        const marker = new window.google.maps.Marker({
+        const marker = new window.google.maps.marker.AdvancedMarkerElement({
           position,
           map: mapInstanceRef.current,
           title: '您的位置',
-          icon: {
-            path: window.google.maps.SymbolPath.CIRCLE,
-            scale: 10,
-            fillColor: '#3B82F6',
-            fillOpacity: 1,
-            strokeColor: '#FFFFFF',
-            strokeWeight: 2
-          }
+          content: createMarkerContent('#3B82F6', 10)
         });
         setCurrentLocationMarker(marker);
       }
@@ -188,8 +197,8 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
       // 安全地清除舊的標記
       taskMarkers.forEach(marker => {
         try {
-          if (marker && typeof marker.setMap === 'function' && marker.getMap()) {
-            marker.setMap(null);
+          if (marker && marker.map) {
+            marker.map = null;
           }
         } catch (error) {
           console.error('Error removing task marker:', error);
@@ -198,7 +207,7 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
       setTaskMarkers([]);
 
       // 添加新的標記
-      const newTaskMarkers: google.maps.Marker[] = [];
+      const newTaskMarkers: google.maps.marker.AdvancedMarkerElement[] = [];
       tasks.forEach(task => {
         if (!task.location?.coordinates) return;
 
@@ -212,18 +221,14 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
         }
 
         const position = { lat, lng };
-        const marker = new window.google.maps.Marker({
+        const marker = new window.google.maps.marker.AdvancedMarkerElement({
           position,
           map: mapInstanceRef.current,
           title: task.title,
-          icon: {
-            path: window.google.maps.SymbolPath.CIRCLE,
-            scale: 8,
-            fillColor: task.isCompleted ? '#10B981' : '#6366F1',
-            fillOpacity: 1,
-            strokeColor: '#FFFFFF',
-            strokeWeight: 2
-          }
+          content: createMarkerContent(
+            task.isCompleted ? '#10B981' : '#6366F1',
+            8
+          )
         });
 
         marker.addListener('click', () => {
@@ -242,14 +247,26 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
     }
   }, [isMapLoaded, tasks, onTaskClick]);
 
+  // 創建標記內容
+  const createMarkerContent = (color: string, size: number) => {
+    const div = document.createElement('div');
+    div.style.width = `${size * 2}px`;
+    div.style.height = `${size * 2}px`;
+    div.style.borderRadius = '50%';
+    div.style.backgroundColor = color;
+    div.style.border = '2px solid white';
+    div.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+    return div;
+  };
+
   // 清理函數
   useEffect(() => {
     return () => {
       // 安全地清理標記
       if (currentLocationMarker) {
         try {
-          if (currentLocationMarker.getMap()) {
-            currentLocationMarker.setMap(null);
+          if (currentLocationMarker.map) {
+            currentLocationMarker.map = null;
           }
         } catch (error) {
           console.error('Error cleaning up current location marker:', error);
@@ -258,8 +275,8 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
       
       taskMarkers.forEach(marker => {
         try {
-          if (marker && typeof marker.setMap === 'function' && marker.getMap()) {
-            marker.setMap(null);
+          if (marker && marker.map) {
+            marker.map = null;
           }
         } catch (error) {
           console.error('Error cleaning up task marker:', error);
