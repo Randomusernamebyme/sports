@@ -248,10 +248,15 @@ export const useGameProgress = (
         }
 
         const sessionData = sessionDoc.data() as GameSession;
-        
+        const updatedTaskStatus = {
+          ...sessionData.taskStatus,
+          [taskId]: status
+        };
+
         // 檢查是否所有任務都已完成
-        const allTasksCompleted = Object.values(sessionData.taskStatus).every(
-          taskStatus => taskStatus === 'completed'
+        const scriptTasks = Object.keys(updatedTaskStatus).filter(key => key.startsWith('task-'));
+        const allTasksCompleted = scriptTasks.length > 0 && scriptTasks.every(
+          taskId => updatedTaskStatus[taskId] === 'completed'
         );
 
         // 如果所有任務都已完成，更新遊戲狀態
@@ -272,8 +277,10 @@ export const useGameProgress = (
           [taskId]: status
         };
         
-        const allTasksCompleted = Object.values(updatedTaskStatus).every(
-          taskStatus => taskStatus === 'completed'
+        // 檢查是否所有任務都已完成
+        const scriptTasks = Object.keys(updatedTaskStatus).filter(key => key.startsWith('task-'));
+        const allTasksCompleted = scriptTasks.length > 0 && scriptTasks.every(
+          taskId => updatedTaskStatus[taskId] === 'completed'
         );
 
         return {
@@ -285,17 +292,22 @@ export const useGameProgress = (
           currentLocationIndex: status === 'completed'
             ? Math.max(prev.currentLocationIndex, taskIndex + 1)
             : prev.currentLocationIndex,
-          status: allTasksCompleted ? 'completed' : prev.status,
+          status: allTasksCompleted ? 'completed' : 'in_progress',
           endTime: allTasksCompleted ? new Date() : prev.endTime,
           score: allTasksCompleted ? calculateScore(prev) : prev.score
         };
       });
 
       // 如果所有任務都已完成，觸發完成回調
-      if (Object.values(gameSession.taskStatus).every(
-        taskStatus => taskStatus === 'completed'
-      )) {
-        handleGameComplete(gameSession.id, calculateScore(gameSession));
+      const updatedSession = await getDoc(sessionRef);
+      const sessionData = updatedSession.data() as GameSession;
+      const scriptTasks = Object.keys(sessionData.taskStatus).filter(key => key.startsWith('task-'));
+      const allTasksCompleted = scriptTasks.length > 0 && scriptTasks.every(
+        taskId => sessionData.taskStatus[taskId] === 'completed'
+      );
+
+      if (allTasksCompleted) {
+        handleGameComplete(gameSession.id, calculateScore(sessionData));
       }
 
       return true;
@@ -368,6 +380,7 @@ export const useGameProgress = (
 
   // 處理遊戲完成
   const handleGameComplete = (sessionId: string, score: number) => {
+    if (!scriptId) return;
     onGameComplete?.(sessionId, score);
     router.push(`/events/${scriptId}/complete?id=${sessionId}`);
   };

@@ -12,6 +12,7 @@ import { GameSession } from '@/types';
 export default function HomePage() {
   const { user, loading } = useAuth();
   const [completedGames, setCompletedGames] = useState(0);
+  const [inProgressGames, setInProgressGames] = useState<GameSession[]>([]);
   const [latestSession, setLatestSession] = useState<GameSession | null>(null);
 
   useEffect(() => {
@@ -21,25 +22,41 @@ export default function HomePage() {
       try {
         const sessionsRef = collection(db, 'gameSessions');
         
-        // 獲取已完成的遊戲數量
+        // 獲取已完成的游戲數量（每個劇本只計算一次）
         const completedQuery = query(
           sessionsRef,
           where('userId', '==', user.uid),
           where('status', '==', 'completed')
         );
         const completedSnapshot = await getDocs(completedQuery);
-        setCompletedGames(completedSnapshot.size);
+        const completedScripts = new Set();
+        completedSnapshot.forEach(doc => {
+          const data = doc.data();
+          completedScripts.add(data.scriptId);
+        });
+        setCompletedGames(completedScripts.size);
 
-        // 獲取最新的進行中遊戲
+        // 獲取進行中的游戲
         const inProgressQuery = query(
           sessionsRef,
           where('userId', '==', user.uid),
           where('status', '==', 'in_progress')
         );
         const inProgressSnapshot = await getDocs(inProgressQuery);
-        if (!inProgressSnapshot.empty) {
-          const latestGame = inProgressSnapshot.docs[0].data() as GameSession;
-          setLatestSession(latestGame);
+        const inProgressGames = inProgressSnapshot.docs.map(doc => ({
+          ...doc.data(),
+          id: doc.id,
+          startTime: doc.data().startTime.toDate(),
+          lastUpdated: doc.data().lastUpdated.toDate()
+        })) as GameSession[];
+
+        // 按最後更新時間排序
+        inProgressGames.sort((a, b) => b.lastUpdated.getTime() - a.lastUpdated.getTime());
+        setInProgressGames(inProgressGames);
+
+        // 設置最新的進行中游戲
+        if (inProgressGames.length > 0) {
+          setLatestSession(inProgressGames[0]);
         }
       } catch (error) {
         console.error('獲取遊戲進度失敗:', error);
@@ -84,7 +101,7 @@ export default function HomePage() {
                     {user.displayName || '用戶'}
                   </p>
                   <p className="text-sm text-gray-500">
-                    已完成 {completedGames} 個遊戲
+                    已完成 {completedGames} 個劇本
                   </p>
                 </div>
               </>
@@ -98,27 +115,36 @@ export default function HomePage() {
             )}
           </div>
 
-          {latestSession && (
+          {inProgressGames.length > 0 && (
             <div className="mt-6 border-t pt-6">
-              <h3 className="text-lg font-medium text-gray-900">繼續遊戲</h3>
-              <div className="mt-4 bg-indigo-50 rounded-lg p-4">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="text-sm text-gray-600">進行中的遊戲</p>
-                    <p className="mt-1 text-sm text-gray-500">
-                      已完成 {latestSession.completedLocations.length} 個地點
-                    </p>
-                    <p className="mt-1 text-sm text-gray-500">
-                      目前得分：{latestSession.score}
-                    </p>
-                  </div>
-                  <Link
-                    href={`/events/${latestSession.scriptId}/play`}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-                  >
-                    繼續
-                  </Link>
-                </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">進行中的游戲</h3>
+              <div className="space-y-4">
+                {inProgressGames.map((session) => {
+                  const script = sampleScripts.find(s => s.id === session.scriptId);
+                  if (!script) return null;
+
+                  return (
+                    <div key={session.id} className="bg-indigo-50 rounded-lg p-4">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="font-medium text-gray-900">{script.title}</p>
+                          <p className="mt-1 text-sm text-gray-500">
+                            已完成 {session.completedLocations.length} / {script.locations.length} 個地點
+                          </p>
+                          <p className="mt-1 text-xs text-gray-400">
+                            上次更新：{new Date(session.lastUpdated).toLocaleString()}
+                          </p>
+                        </div>
+                        <Link
+                          href={`/events/${session.scriptId}/play`}
+                          className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                        >
+                          繼續
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

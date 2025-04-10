@@ -93,24 +93,24 @@ export default function ProfilePage() {
           inProgress: 0
         };
 
-        // 用於追蹤已完成的劇本
+        // 用於追蹤已完成的劇本和進行中的游戲
         const completedScripts = new Set<string>();
+        const inProgressGames = new Set<string>();
         
         snapshot.forEach(doc => {
           const data = doc.data();
           if (data.status === 'completed') {
             // 只計算每個劇本一次
-            if (!completedScripts.has(data.scriptId)) {
-              completedScripts.add(data.scriptId);
-              stats.completed++;
-            }
+            completedScripts.add(data.scriptId);
           } else if (data.status === 'in_progress') {
-            stats.inProgress++;
+            // 記錄進行中的游戲ID
+            inProgressGames.add(doc.id);
           }
         });
 
-        // 總數為已完成劇本數加上進行中的游戲數
-        stats.total = stats.completed + stats.inProgress;
+        stats.completed = completedScripts.size; // 已完成的劇本數
+        stats.inProgress = inProgressGames.size; // 進行中的游戲數
+        stats.total = stats.completed + stats.inProgress; // 總數為已完成劇本數加上進行中的游戲數
 
         setGameStats(stats);
       } catch (error) {
@@ -679,14 +679,17 @@ export default function ProfilePage() {
             <div className="bg-indigo-50 rounded-lg p-4">
               <p className="text-sm text-indigo-600">總游戲數</p>
               <p className="text-2xl font-bold text-indigo-700">{gameStats.total}</p>
+              <p className="text-xs text-indigo-500 mt-1">包含進行中的游戲</p>
             </div>
             <div className="bg-green-50 rounded-lg p-4">
-              <p className="text-sm text-green-600">已完成</p>
+              <p className="text-sm text-green-600">已完成劇本</p>
               <p className="text-2xl font-bold text-green-700">{gameStats.completed}</p>
+              <p className="text-xs text-green-500 mt-1">每個劇本只計算一次</p>
             </div>
             <div className="bg-yellow-50 rounded-lg p-4">
               <p className="text-sm text-yellow-600">進行中</p>
               <p className="text-2xl font-bold text-yellow-700">{gameStats.inProgress}</p>
+              <p className="text-xs text-yellow-500 mt-1">當前進行中的游戲</p>
             </div>
           </div>
           <button
