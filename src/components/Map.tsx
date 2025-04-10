@@ -81,10 +81,12 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
         console.error('Failed to load Google Maps:', error);
         let errorMessage = '無法載入地圖，請檢查網絡連接或重新整理頁面';
         
-        if (error.message?.includes('InvalidKeyMapError')) {
-          errorMessage = 'Google Maps API密鑰無效，請聯繫管理員';
-        } else if (error.message?.includes('MissingKeyMapError')) {
-          errorMessage = 'Google Maps API密鑰未設置，請聯繫管理員';
+        if (error instanceof Error) {
+          if (error.message.includes('InvalidKeyMapError')) {
+            errorMessage = 'Google Maps API密鑰無效，請聯繫管理員';
+          } else if (error.message.includes('MissingKeyMapError')) {
+            errorMessage = 'Google Maps API密鑰未設置，請聯繫管理員';
+          }
         }
         
         if (isMounted) {
