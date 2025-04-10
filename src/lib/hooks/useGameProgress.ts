@@ -349,7 +349,7 @@ export const useGameProgress = (
   // 處理遊戲完成
   const handleGameComplete = (sessionId: string, score: number) => {
     onGameComplete?.(sessionId, score);
-    router.push(`/events/${scriptId}/complete/${sessionId}`);
+    router.push(`/events/${scriptId}/complete?id=${sessionId}`);
   };
 
   return {
