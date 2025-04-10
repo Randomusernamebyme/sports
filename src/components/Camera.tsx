@@ -18,10 +18,30 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isUploading, setIsUploading] = useState(false);
 
+  const startCamera = async () => {
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+        audio: false
+      });
+
+      setStream(mediaStream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+      }
+      setIsCameraAvailable(true);
+      setError(null);
+    } catch (err: any) {
+      console.error('相機初始化失敗:', err);
+      setError('無法訪問相機，請允許相機權限或使用上傳照片功能');
+      setIsCameraAvailable(false);
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
 
-    const startCamera = async () => {
+    const initCamera = async () => {
       try {
         const mediaStream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'environment' },
@@ -33,19 +53,16 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
           if (videoRef.current) {
             videoRef.current.srcObject = mediaStream;
           }
-          setIsCameraAvailable(true);
-          setError(null);
         }
       } catch (err: any) {
         console.error('相機初始化失敗:', err);
         if (mounted) {
           setError('無法訪問相機，請允許相機權限或使用上傳照片功能');
-          setIsCameraAvailable(false);
         }
       }
     };
 
-    startCamera();
+    initCamera();
 
     return () => {
       mounted = false;
