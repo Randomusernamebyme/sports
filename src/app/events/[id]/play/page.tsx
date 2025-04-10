@@ -235,7 +235,6 @@ export default function PlayPage() {
 
   const handlePhotoCapture = (photo: string) => {
     if (selectedTask) {
-      // 只設置照片，不立即標記為完成
       setTasks(tasks.map(task =>
         task.id === selectedTask.id
           ? { ...task, photo }
@@ -246,8 +245,15 @@ export default function PlayPage() {
     }
   };
 
+  const handleCameraError = (error: string) => {
+    setTaskError(error);
+    setShowCamera(false);
+    setSelectedTask(null);
+  };
+
   const handleCancelPhoto = () => {
     setShowCamera(false);
+    setSelectedTask(null);
   };
 
   const handleSubmit = async () => {
@@ -401,11 +407,8 @@ export default function PlayPage() {
                     <div className="relative aspect-[4/3] mb-4 bg-black rounded-lg overflow-hidden">
                       <Camera
                         onCapture={handlePhotoCapture}
-                        onCancel={() => setShowCamera(false)}
-                        onError={(error) => {
-                          setTaskError(error);
-                          setShowCamera(false);
-                        }}
+                        onCancel={handleCancelPhoto}
+                        onError={handleCameraError}
                       />
                     </div>
                   ) : capturedPhoto ? (
