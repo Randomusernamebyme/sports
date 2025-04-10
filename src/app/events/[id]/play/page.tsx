@@ -36,7 +36,10 @@ export default function PlayPage() {
   const script = sampleScripts.find(s => s.id === id);
   const mode = searchParams.get('mode');
   const roomCode = searchParams.get('room');
-  const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>({
+    lat: 22.2783,
+    lng: 114.1827
+  });
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showCamera, setShowCamera] = useState(false);
@@ -119,6 +122,11 @@ export default function PlayPage() {
               (error) => {
                 console.error('獲取位置失敗:', error);
                 setLocationError('無法獲取位置，請確保已開啟位置服務');
+              },
+              {
+                enableHighAccuracy: true,
+                timeout: 5000,
+                maximumAge: 0
               }
             );
           } else if (permissionStatus.state === 'prompt') {
@@ -135,6 +143,11 @@ export default function PlayPage() {
                 console.error('位置權限被拒絕:', error);
                 setLocationPermissionGranted(false);
                 setLocationError('請允許使用位置權限以繼續遊戲');
+              },
+              {
+                enableHighAccuracy: true,
+                timeout: 5000,
+                maximumAge: 0
               }
             );
           } else {
