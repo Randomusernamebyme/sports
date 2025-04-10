@@ -45,7 +45,9 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
   });
 
   const [mapError, setMapError] = useState<string | null>(null);
+  const mapRef = useRef<google.maps.Map | null>(null);
 
+  // 處理地圖載入錯誤
   useEffect(() => {
     if (loadError) {
       console.error('Failed to load Google Maps:', loadError);
@@ -62,6 +64,28 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
       setMapError(errorMessage);
     }
   }, [loadError]);
+
+  // 驗證座標是否有效
+  const isValidCoordinate = (lat: number, lng: number) => {
+    return !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0;
+  };
+
+  // 獲取當前中心點
+  const getCenter = () => {
+    if (currentLocation && 
+        isValidCoordinate(Number(currentLocation.lat), Number(currentLocation.lng))) {
+      return { 
+        lat: Number(currentLocation.lat), 
+        lng: Number(currentLocation.lng) 
+      };
+    }
+    return defaultCenter;
+  };
+
+  // 處理地圖載入
+  const onMapLoad = (map: google.maps.Map) => {
+    mapRef.current = map;
+  };
 
   if (mapError) {
     return (
@@ -87,62 +111,52 @@ export default function Map({ currentLocation, tasks, onTaskClick }: MapProps) {
     );
   }
 
-  const center = currentLocation && 
-    !isNaN(Number(currentLocation.lat)) && 
-    !isNaN(Number(currentLocation.lng)) && 
-    Number(currentLocation.lat) !== 0 && 
-    Number(currentLocation.lng) !== 0
-    ? { 
-        lat: Number(currentLocation.lat), 
-        lng: Number(currentLocation.lng) 
-      }
-    : defaultCenter;
-
   return (
     <GoogleMap
       mapContainerStyle={mapContainerStyle}
-      center={center}
+      center={getCenter()}
       zoom={15}
+      onLoad={onMapLoad}
       options={{
         mapTypeControl: false,
         fullscreenControl: false,
         streetViewControl: false,
-        gestureHandling: 'greedy'
+        gestureHandling: 'greedy',
+        disableDefaultUI: false,
+        zoomControl: true,
       }}
     >
       {/* 當前位置標記 */}
-      {currentLocation && 
-        !isNaN(Number(currentLocation.lat)) && 
-        !isNaN(Number(currentLocation.lng)) && 
-        Number(currentLocation.lat) !== 0 && 
-        Number(currentLocation.lng) !== 0 && (
-          <Marker
-            position={{
-              lat: Number(currentLocation.lat),
-              lng: Number(currentLocation.lng)
-            }}
-            icon={{
-              path: google.maps.SymbolPath.CIRCLE,
-              scale: 10,
-              fillColor: '#3B82F6',
-              fillOpacity: 1,
-              strokeColor: '#FFFFFF',
-              strokeWeight: 2
-            }}
-            title="您的位置"
-          />
-        )
-      }
+      {currentLocation && isValidCoordinate(Number(currentLocation.lat), Number(currentLocation.lng)) && (
+        <Marker
+          position={{
+            lat: Number(currentLocation.lat),
+            lng: Number(currentLocation.lng)
+          }}
+          icon={{
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 10,
+            fillColor: '#3B82F6',
+            fillOpacity: 1,
+            strokeColor: '#FFFFFF',
+            strokeWeight: 2
+          }}
+          title="您的位置"
+        />
+      )}
 
       {/* 任務標記 */}
       {tasks.map(task => {
-        if (!task.location?.coordinates) return null;
+        if (!task.location?.coordinates) {
+          console.warn(`任務 ${task.id} 缺少座標資訊`);
+          return null;
+        }
 
         const lat = Number(task.location.coordinates.lat || task.location.coordinates.latitude);
         const lng = Number(task.location.coordinates.lng || task.location.coordinates.longitude);
 
-        if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) {
-          console.error('無效的座標:', task.location.coordinates);
+        if (!isValidCoordinate(lat, lng)) {
+          console.warn(`任務 ${task.id} 的座標無效:`, task.location.coordinates);
           return null;
         }
 
