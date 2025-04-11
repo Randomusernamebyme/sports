@@ -9,6 +9,9 @@ import Map from '@/components/Map';
 import Camera from '@/components/Camera';
 import { useGameProgress } from '@/lib/hooks/useGameProgress';
 import { useRouter } from 'next/navigation';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase/config';
+import { GameSession } from '@/types';
 
 interface Task {
   id: string;
@@ -95,13 +98,45 @@ export default function PlayPage() {
           setTasks(initialTasks);
         } else {
           try {
-            // 如果沒有進行中的游戲，創建新的游戲進度
-            const newSession = await createGameSession();
-            if (newSession) {
+            // 檢查是否有進行中的游戲
+            const sessionsRef = collection(db, 'gameSessions');
+            const q = query(
+              sessionsRef,
+              where('userId', '==', user?.uid),
+              where('scriptId', '==', script.id),
+              where('status', '==', 'in_progress')
+            );
+            const querySnapshot = await getDocs(q);
+
+            if (!querySnapshot.empty) {
+              // 如果有進行中的游戲，使用該游戲進度
+              const doc = querySnapshot.docs[0];
+              const session = {
+                ...doc.data(),
+                id: doc.id,
+                startTime: doc.data().startTime.toDate(),
+                lastUpdated: doc.data().lastUpdated.toDate(),
+                endTime: doc.data().endTime?.toDate(),
+              } as GameSession;
+              
               const initialTasks = script.locations.map((location, index) => 
-                createTaskFromLocation(location, index, false, index === 0)
+                createTaskFromLocation(
+                  location,
+                  index,
+                  session.completedLocations.includes(`task-${index + 1}`),
+                  index <= session.currentLocationIndex
+                )
               );
               setTasks(initialTasks);
+            } else {
+              // 如果沒有進行中的游戲，創建新的游戲進度
+              const newSession = await createGameSession();
+              if (newSession) {
+                const initialTasks = script.locations.map((location, index) => 
+                  createTaskFromLocation(location, index, false, index === 0)
+                );
+                setTasks(initialTasks);
+              }
             }
           } catch (error) {
             console.error('創建遊戲進度失敗:', error);
@@ -126,6 +161,7 @@ export default function PlayPage() {
                   lat: position.coords.latitude,
                   lng: position.coords.longitude
                 });
+                setLocationError(null);
               },
               (error) => {
                 console.error('獲取位置失敗:', error);
@@ -146,6 +182,7 @@ export default function PlayPage() {
                   lat: position.coords.latitude,
                   lng: position.coords.longitude
                 });
+                setLocationError(null);
               },
               (error) => {
                 console.error('位置權限被拒絕:', error);
@@ -168,7 +205,7 @@ export default function PlayPage() {
           setLocationError('無法檢查位置權限，請確保瀏覽器支援位置服務');
         });
     }
-  }, [script, gameSession, createGameSession]);
+  }, [script, gameSession, createGameSession, user]);
 
   const isValidCoordinates = (lat: number, lng: number): boolean => {
     return (
