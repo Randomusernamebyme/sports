@@ -52,10 +52,11 @@ export default function PlayPage() {
   const MAX_DISTANCE = 1000; // 最大允許距離（米）
   const { 
     gameSession, 
-    loading: gameLoading, 
+    loading, 
+    error, 
     createGameSession, 
     updateGameProgress, 
-    completeGameSession,
+    handleGameComplete,
     updateTaskStatus 
   } = useGameProgress(id as string);
   const router = useRouter();
@@ -314,7 +315,7 @@ export default function PlayPage() {
         const allTasksCompleted = updatedTasks.every(task => task.isCompleted);
         if (allTasksCompleted && gameSession) {
           // 完成遊戲並跳轉到完成頁面
-          completeGameSession(gameSession.id, gameSession.score);
+          handleGameComplete(gameSession.id, gameSession.score);
           router.push(`/events/${id}/complete/${gameSession.id}`);
         }
 
