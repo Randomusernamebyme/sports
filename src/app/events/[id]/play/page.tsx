@@ -292,10 +292,10 @@ export default function PlayPage() {
       await updateTaskStatus(selectedTask.id, 'completed');
 
       // 更新本地任務狀態
-      let allTasksCompleted = false;
       setTasks(prevTasks => {
         const updatedTasks = prevTasks.map(task => {
           if (task.id === selectedTask.id) {
+            // 更新當前任務為已完成
             return {
               ...task,
               isCompleted: true,
@@ -313,15 +313,18 @@ export default function PlayPage() {
         });
 
         // 檢查是否所有任務都已完成
-        allTasksCompleted = updatedTasks.every(task => task.isCompleted);
+        const allTasksCompleted = updatedTasks.every(task => task.isCompleted);
+        
+        // 如果所有任務都已完成，觸發游戲完成
+        if (allTasksCompleted && gameSession) {
+          // 使用 setTimeout 確保狀態更新完成後再觸發完成
+          setTimeout(async () => {
+            await handleGameComplete(gameSession.id, gameSession.score);
+          }, 100);
+        }
+
         return updatedTasks;
       });
-
-      // 如果所有任務都已完成，等待一下讓狀態更新完成
-      if (allTasksCompleted && gameSession) {
-        // 完成遊戲並跳轉到完成頁面
-        await handleGameComplete(gameSession.id, gameSession.score);
-      }
 
       // 重置狀態
       setSelectedTask(null);
