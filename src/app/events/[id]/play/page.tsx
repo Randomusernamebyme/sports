@@ -292,6 +292,7 @@ export default function PlayPage() {
       await updateTaskStatus(selectedTask.id, 'completed');
 
       // 更新本地任務狀態
+      let allTasksCompleted = false;
       setTasks(prevTasks => {
         const updatedTasks = prevTasks.map(task => {
           if (task.id === selectedTask.id) {
@@ -312,15 +313,15 @@ export default function PlayPage() {
         });
 
         // 檢查是否所有任務都已完成
-        const allTasksCompleted = updatedTasks.every(task => task.isCompleted);
-        if (allTasksCompleted && gameSession) {
-          // 完成遊戲並跳轉到完成頁面
-          handleGameComplete(gameSession.id, gameSession.score);
-          router.push(`/events/${id}/complete/${gameSession.id}`);
-        }
-
+        allTasksCompleted = updatedTasks.every(task => task.isCompleted);
         return updatedTasks;
       });
+
+      // 如果所有任務都已完成，等待一下讓狀態更新完成
+      if (allTasksCompleted && gameSession) {
+        // 完成遊戲並跳轉到完成頁面
+        await handleGameComplete(gameSession.id, gameSession.score);
+      }
 
       // 重置狀態
       setSelectedTask(null);
