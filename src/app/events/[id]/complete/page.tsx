@@ -116,21 +116,9 @@ export default function GameCompletePage({ params }: { params: { id: string } })
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900 mb-6">恭喜完成遊戲！</h1>
           
-          <div className="space-y-4 mb-8">
-            <div className="p-4 bg-indigo-50 rounded-lg">
-              <p className="text-sm text-indigo-600">遊戲得分</p>
-              <p className="text-2xl font-bold text-indigo-700">{gameSession.score}</p>
-            </div>
-            
-            <div className="p-4 bg-green-50 rounded-lg">
-              <p className="text-sm text-green-600">完成時間</p>
-              <p className="text-2xl font-bold text-green-700">{duration} 分鐘</p>
-            </div>
-            
-            <div className="p-4 bg-blue-50 rounded-lg">
-              <p className="text-sm text-blue-600">使用提示</p>
-              <p className="text-2xl font-bold text-blue-700">{gameSession.hintsUsed} 次</p>
-            </div>
+          <div className="p-4 bg-green-50 rounded-lg mb-8">
+            <p className="text-sm text-green-600">完成時間</p>
+            <p className="text-2xl font-bold text-green-700">{duration} 分鐘</p>
           </div>
 
           <button

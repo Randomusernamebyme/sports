@@ -313,17 +313,6 @@ export default function PlayPage() {
           return task;
         });
 
-        // 檢查是否所有任務都已完成
-        const allTasksCompleted = updatedTasks.every(task => task.isCompleted);
-        
-        // 如果所有任務都已完成，觸發游戲完成
-        if (allTasksCompleted && gameSession) {
-          // 使用 setTimeout 確保狀態更新完成後再觸發完成
-          setTimeout(async () => {
-            await handleGameComplete(gameSession.id, gameSession.score);
-          }, 100);
-        }
-
         return updatedTasks;
       });
 
