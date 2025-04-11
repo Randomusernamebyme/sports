@@ -57,7 +57,8 @@ export default function PlayPage() {
     createGameSession, 
     updateGameProgress, 
     handleGameComplete,
-    updateTaskStatus 
+    updateTaskStatus,
+    playCount 
   } = useGameProgress(id as string);
   const router = useRouter();
 
@@ -368,9 +369,16 @@ export default function PlayPage() {
           <div className="bg-white shadow-sm p-4 flex items-center justify-between sticky top-0 z-10">
             <div className="flex items-center space-x-4">
               <h1 className="text-xl font-bold">{script.title || '任務進度'}</h1>
-              <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                已完成 {tasks.filter(t => t.isCompleted).length}/{tasks.length}
-              </span>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                  已完成 {tasks.filter(t => t.isCompleted).length}/{tasks.length}
+                </span>
+                {playCount > 0 && (
+                  <span className="text-sm text-indigo-500 bg-indigo-100 px-2 py-1 rounded-full">
+                    第 {playCount + 1} 次遊玩
+                  </span>
+                )}
+              </div>
             </div>
             {locationError && (
               <span className="text-sm text-red-500">{locationError}</span>

@@ -12,20 +12,23 @@ import {
   getDocs,
   runTransaction,
   arrayUnion,
+  addDoc,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { useAuth } from '@/contexts/AuthContext';
 import { GameSession } from '@/types';
+import { sampleScripts } from '@/lib/scripts';
 
 export const useGameProgress = (
-  scriptId?: string,
+  scriptId: string,
   onGameComplete?: (sessionId: string, score: number) => void
 ) => {
-  const router = useRouter();
   const { user } = useAuth();
+  const router = useRouter();
   const [gameSession, setGameSession] = useState<GameSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [playCount, setPlayCount] = useState(0);
 
   // 計算遊戲分數
   const calculateScore = (session: GameSession) => {
@@ -37,47 +40,52 @@ export const useGameProgress = (
     return Math.max(0, baseScore + timeBonus - hintPenalty);
   };
 
-  // 獲取遊戲進度
+  // 獲取遊戲進度和重複遊戲次數
   useEffect(() => {
     const fetchGameProgress = async () => {
-      if (!user) {
+      if (!user || !scriptId) {
         setLoading(false);
-        setError('請先登入以繼續遊戲');
-        return;
-      }
-
-      if (!scriptId) {
-        setLoading(false);
-        setError('劇本ID未提供');
         return;
       }
 
       try {
         setLoading(true);
         setError(null);
+
+        // 獲取當前進行中的遊戲
         const sessionsRef = collection(db, 'gameSessions');
-        
-        // 只獲取進行中的游戲
         const q = query(
           sessionsRef,
           where('userId', '==', user.uid),
           where('scriptId', '==', scriptId),
           where('status', '==', 'in_progress')
         );
+        const querySnapshot = await getDocs(q);
 
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
+        if (!querySnapshot.empty) {
+          const doc = querySnapshot.docs[0];
           const session = {
-            ...snapshot.docs[0].data(),
-            id: snapshot.docs[0].id
+            ...doc.data(),
+            id: doc.id,
+            startTime: doc.data().startTime.toDate(),
+            lastUpdated: doc.data().lastUpdated.toDate(),
+            endTime: doc.data().endTime?.toDate(),
           } as GameSession;
           setGameSession(session);
-        } else {
-          setGameSession(null);
         }
+
+        // 獲取該劇本的完成次數
+        const completedQuery = query(
+          sessionsRef,
+          where('userId', '==', user.uid),
+          where('scriptId', '==', scriptId),
+          where('status', '==', 'completed')
+        );
+        const completedSnapshot = await getDocs(completedQuery);
+        setPlayCount(completedSnapshot.size);
       } catch (err: any) {
         console.error('獲取遊戲進度失敗:', err);
-        setError('獲取遊戲進度時發生錯誤，請稍後重試');
+        setError('獲取遊戲進度時發生錯誤');
       } finally {
         setLoading(false);
       }
@@ -88,13 +96,8 @@ export const useGameProgress = (
 
   // 創建新的遊戲進度
   const createGameSession = async () => {
-    if (!user) {
-      setError('請先登入以開始遊戲');
-      return null;
-    }
-
-    if (!scriptId) {
-      setError('劇本ID未提供');
+    if (!user || !scriptId) {
+      setError('請先登入以創建遊戲進度');
       return null;
     }
 
@@ -102,29 +105,37 @@ export const useGameProgress = (
       setLoading(true);
       setError(null);
 
-      // 創建新的遊戲進度
-      const newSession: GameSession = {
-        id: '',
-        scriptId,
+      const script = sampleScripts.find(s => s.id === scriptId);
+      if (!script) {
+        setError('找不到劇本');
+        return null;
+      }
+
+      const sessionData: Omit<GameSession, 'id'> = {
         userId: user.uid,
+        scriptId,
         status: 'in_progress',
+        startTime: new Date(),
+        lastUpdated: new Date(),
+        completedLocations: [],
         currentLocationIndex: 0,
         score: 0,
-        startTime: new Date(),
-        completedLocations: [],
         hintsUsed: 0,
         taskStatus: {},
-        lastUpdated: new Date(),
+        playCount: playCount + 1 // 添加重複遊戲計數
       };
 
-      const docRef = doc(collection(db, 'gameSessions'));
-      await setDoc(docRef, { ...newSession, id: docRef.id });
-      newSession.id = docRef.id;
-      setGameSession(newSession);
-      return newSession;
+      const docRef = await addDoc(collection(db, 'gameSessions'), sessionData);
+      const session = {
+        ...sessionData,
+        id: docRef.id,
+      } as GameSession;
+
+      setGameSession(session);
+      return session;
     } catch (err: any) {
       console.error('創建遊戲進度失敗:', err);
-      setError('創建遊戲進度時發生錯誤，請稍後重試');
+      setError('創建遊戲進度時發生錯誤');
       return null;
     } finally {
       setLoading(false);
@@ -214,7 +225,10 @@ export const useGameProgress = (
     if (!scriptId) return;
 
     try {
-      // 先更新游戲狀態
+      setLoading(true);
+      setError(null);
+
+      // 使用事務來確保原子性更新
       const sessionRef = doc(db, 'gameSessions', sessionId);
       await runTransaction(db, async (transaction) => {
         const sessionDoc = await transaction.get(sessionRef);
@@ -232,7 +246,8 @@ export const useGameProgress = (
           status: 'completed',
           score: score,
           endTime: new Date(),
-          lastUpdated: new Date()
+          lastUpdated: new Date(),
+          playCount: sessionData.playCount || 1
         });
       });
 
@@ -245,6 +260,9 @@ export const useGameProgress = (
         lastUpdated: new Date()
       } : null);
 
+      // 增加完成次數
+      setPlayCount(prev => prev + 1);
+
       // 觸發完成回調
       onGameComplete?.(sessionId, score);
 
@@ -256,6 +274,8 @@ export const useGameProgress = (
     } catch (error) {
       console.error('完成遊戲時發生錯誤:', error);
       setError('完成遊戲時發生錯誤，請稍後重試');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -379,6 +399,7 @@ export const useGameProgress = (
     gameSession,
     loading,
     error,
+    playCount,
     createGameSession,
     updateGameProgress,
     updateTaskStatus,

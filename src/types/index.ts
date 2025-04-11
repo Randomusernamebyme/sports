@@ -73,17 +73,16 @@ export interface Clue {
 
 export interface GameSession {
   id: string;
-  scriptId: string;
   userId: string;
-  status: 'in_progress' | 'completed' | 'abandoned';
-  currentLocationIndex: number;
-  score: number;
+  scriptId: string;
+  status: 'in_progress' | 'completed';
   startTime: Date;
   endTime?: Date;
-  completedLocations: string[];
-  hintsUsed: number;
-  taskStatus: {
-    [taskId: string]: 'pending' | 'in_progress' | 'completed';
-  };
   lastUpdated: Date;
+  completedLocations: string[];
+  currentLocationIndex: number;
+  score: number;
+  hintsUsed: number;
+  taskStatus: Record<string, 'pending' | 'in_progress' | 'completed'>;
+  playCount?: number; // 添加重複游戲計數
 } 
