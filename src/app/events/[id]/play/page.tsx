@@ -83,6 +83,7 @@ export default function PlayPage() {
         });
 
         if (gameSession) {
+          // 如果有進行中的游戲，直接使用現有的游戲進度
           const initialTasks = script.locations.map((location, index) => 
             createTaskFromLocation(
               location,
@@ -94,11 +95,14 @@ export default function PlayPage() {
           setTasks(initialTasks);
         } else {
           try {
-            await createGameSession();
-            const initialTasks = script.locations.map((location, index) => 
-              createTaskFromLocation(location, index, false, index === 0)
-            );
-            setTasks(initialTasks);
+            // 如果沒有進行中的游戲，創建新的游戲進度
+            const newSession = await createGameSession();
+            if (newSession) {
+              const initialTasks = script.locations.map((location, index) => 
+                createTaskFromLocation(location, index, false, index === 0)
+              );
+              setTasks(initialTasks);
+            }
           } catch (error) {
             console.error('創建遊戲進度失敗:', error);
             setTaskError('無法創建遊戲進度');
@@ -164,7 +168,7 @@ export default function PlayPage() {
           setLocationError('無法檢查位置權限，請確保瀏覽器支援位置服務');
         });
     }
-  }, [script, gameSession]);
+  }, [script, gameSession, createGameSession]);
 
   const isValidCoordinates = (lat: number, lng: number): boolean => {
     return (
