@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { GameSession } from '@/types';
@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 export default function GameCompletePage({ params }: { params: { id: string } }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const [gameSession, setGameSession] = useState<GameSession | null>(null);
   const [loading, setLoading] = useState(true);
@@ -22,8 +23,15 @@ export default function GameCompletePage({ params }: { params: { id: string } })
         return;
       }
 
+      const sessionId = searchParams.get('id');
+      if (!sessionId) {
+        setError('找不到遊戲記錄');
+        setLoading(false);
+        return;
+      }
+
       try {
-        const sessionRef = doc(db, 'gameSessions', params.id);
+        const sessionRef = doc(db, 'gameSessions', sessionId);
         const sessionDoc = await getDoc(sessionRef);
 
         if (!sessionDoc.exists()) {
@@ -49,7 +57,7 @@ export default function GameCompletePage({ params }: { params: { id: string } })
     };
 
     fetchGameSession();
-  }, [user, params.id]);
+  }, [user, searchParams]);
 
   if (loading) {
     return (

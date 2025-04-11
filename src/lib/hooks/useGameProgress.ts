@@ -270,7 +270,7 @@ export const useGameProgress = (
       await new Promise(resolve => setTimeout(resolve, 500));
 
       // 使用正確的路徑格式
-      router.push(`/events/${scriptId}/complete/${sessionId}`);
+      router.push(`/events/${scriptId}/complete?id=${sessionId}`);
     } catch (error) {
       console.error('完成遊戲時發生錯誤:', error);
       setError('完成遊戲時發生錯誤，請稍後重試');
