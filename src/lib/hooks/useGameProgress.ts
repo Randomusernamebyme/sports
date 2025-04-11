@@ -209,6 +209,56 @@ export const useGameProgress = (
     }
   };
 
+  // 處理遊戲完成
+  const handleGameComplete = async (sessionId: string, score: number) => {
+    if (!scriptId) return;
+
+    try {
+      // 先更新游戲狀態
+      const sessionRef = doc(db, 'gameSessions', sessionId);
+      await runTransaction(db, async (transaction) => {
+        const sessionDoc = await transaction.get(sessionRef);
+        if (!sessionDoc.exists()) {
+          throw new Error('找不到遊戲進度');
+        }
+
+        const sessionData = sessionDoc.data() as GameSession;
+        if (sessionData.userId !== user?.uid) {
+          throw new Error('無權限更新此遊戲進度');
+        }
+
+        // 更新遊戲狀態
+        transaction.update(sessionRef, {
+          status: 'completed',
+          score: score,
+          endTime: new Date(),
+          lastUpdated: new Date()
+        });
+      });
+
+      // 更新本地狀態
+      setGameSession(prev => prev ? {
+        ...prev,
+        status: 'completed',
+        score: score,
+        endTime: new Date(),
+        lastUpdated: new Date()
+      } : null);
+
+      // 觸發完成回調
+      onGameComplete?.(sessionId, score);
+
+      // 確保數據已保存後再跳轉
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // 使用正確的路徑格式
+      router.push(`/events/${scriptId}/complete/${sessionId}`);
+    } catch (error) {
+      console.error('完成遊戲時發生錯誤:', error);
+      setError('完成遊戲時發生錯誤，請稍後重試');
+    }
+  };
+
   // 更新任務狀態
   const updateTaskStatus = async (taskId: string, status: 'pending' | 'in_progress' | 'completed') => {
     if (!user) {
@@ -307,7 +357,7 @@ export const useGameProgress = (
       );
 
       if (allTasksCompleted) {
-        handleGameComplete(gameSession.id, calculateScore(sessionData));
+        await handleGameComplete(gameSession.id, calculateScore(sessionData));
       }
 
       return true;
@@ -325,66 +375,6 @@ export const useGameProgress = (
     }
   };
 
-  // 完成遊戲
-  const completeGameSession = async (sessionId: string, finalScore: number) => {
-    if (!user) {
-      setError('請先登入以完成遊戲');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // 使用事務確保原子性更新
-      await runTransaction(db, async (transaction) => {
-        const sessionRef = doc(db, 'gameSessions', sessionId);
-        const sessionDoc = await transaction.get(sessionRef);
-        
-        if (!sessionDoc.exists()) {
-          throw new Error('找不到遊戲進度');
-        }
-
-        const sessionData = sessionDoc.data() as GameSession;
-        if (sessionData.userId !== user.uid) {
-          throw new Error('無權限更新此遊戲進度');
-        }
-
-        // 更新遊戲狀態
-        transaction.update(sessionRef, {
-          status: 'completed',
-          score: finalScore,
-          endTime: new Date(),
-          lastUpdated: new Date()
-        });
-      });
-
-      // 更新本地狀態
-      setGameSession(prev => prev ? {
-        ...prev,
-        status: 'completed',
-        score: finalScore,
-        endTime: new Date(),
-        lastUpdated: new Date()
-      } : null);
-
-      // 觸發完成回調
-      onGameComplete?.(sessionId, finalScore);
-    } catch (err: any) {
-      console.error('完成遊戲失敗:', err);
-      setError('完成遊戲時發生錯誤，請稍後重試');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 處理遊戲完成
-  const handleGameComplete = (sessionId: string, score: number) => {
-    if (!scriptId) return;
-    onGameComplete?.(sessionId, score);
-    router.push(`/events/${scriptId}/complete?id=${sessionId}`);
-  };
-
   return {
     gameSession,
     loading,
@@ -392,7 +382,6 @@ export const useGameProgress = (
     createGameSession,
     updateGameProgress,
     updateTaskStatus,
-    completeGameSession,
     handleGameComplete,
   };
 }; 
