@@ -9,9 +9,7 @@ import { GameSession } from '@/types/game';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
-interface CompletePageProps {}
-
-const CompletePage: React.FC<CompletePageProps> = () => {
+export default function CompletePage() {
   const { id: scriptId, sessionId } = useParams();
   const { user } = useAuth();
   const router = useRouter();
@@ -153,6 +151,4 @@ const CompletePage: React.FC<CompletePageProps> = () => {
       </div>
     </div>
   );
-};
-
-export default CompletePage; 
+} 
