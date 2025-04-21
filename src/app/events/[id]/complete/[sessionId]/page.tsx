@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
-import { GameSession } from '@/types';
+import { GameSession } from '@/types/game';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
@@ -92,14 +92,14 @@ const CompletePage: React.FC<CompletePageProps> = () => {
             恭喜完成游戲！
           </h1>
           <p className="text-xl text-gray-600 mb-8">
-            您已完成所有任務，總得分：{gameSession.score} 分
+            您已完成所有任務，游戲次數：{gameSession.playCount} 次
           </p>
         </div>
 
         <div className="mt-12">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">任務回顧</h2>
           <div className="space-y-6">
-            {Object.entries(gameSession.taskStatus).map(([taskId, status]) => (
+            {Object.entries(gameSession.tasks).map(([taskId, task]) => (
               <div
                 key={taskId}
                 className="bg-white rounded-lg shadow-sm p-6"
@@ -110,9 +110,26 @@ const CompletePage: React.FC<CompletePageProps> = () => {
                       任務 {taskId}
                     </h3>
                     <p className="mt-1 text-gray-600">
-                      狀態：{status === 'completed' ? '已完成' : status === 'in_progress' ? '進行中' : '待完成'}
+                      狀態：{task.status === 'completed' ? '已完成' : task.status === 'unlocked' ? '已解鎖' : '已鎖定'}
                     </p>
+                    {task.completedAt && (
+                      <p className="mt-1 text-gray-500">
+                        完成時間：{new Date(task.completedAt).toLocaleString()}
+                      </p>
+                    )}
                   </div>
+                  {task.photo && (
+                    <div className="ml-4">
+                      <div className="relative w-24 h-24">
+                        <Image
+                          src={task.photo}
+                          alt={`任務 ${taskId} 的照片`}
+                          fill
+                          className="rounded-lg object-cover"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
