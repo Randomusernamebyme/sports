@@ -7,15 +7,15 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 interface CameraProps {
   onCapture: (photoUrl: string) => void;
-  onClose: () => void;
+  onCancel: () => void;
+  onError: (error: string) => void;
 }
 
-export default function Camera({ onCapture, onClose }: CameraProps) {
+export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
 
   // 初始化相機
@@ -38,7 +38,7 @@ export default function Camera({ onCapture, onClose }: CameraProps) {
         setLoading(false);
       } catch (error) {
         console.error('初始化相機失敗:', error);
-        setError('無法訪問相機，請確保已授予相機權限');
+        onError('無法訪問相機，請確保已授予相機權限');
         setLoading(false);
       }
     };
@@ -50,7 +50,7 @@ export default function Camera({ onCapture, onClose }: CameraProps) {
         stream.getTracks().forEach(track => track.stop());
       }
     };
-  }, []);
+  }, [onError]);
 
   // 拍照
   const takePhoto = async () => {
@@ -86,7 +86,7 @@ export default function Camera({ onCapture, onClose }: CameraProps) {
       onCapture(photoUrl);
     } catch (error) {
       console.error('拍照失敗:', error);
-      setError('拍照失敗，請重試');
+      onError('拍照失敗，請重試');
     } finally {
       setLoading(false);
     }
@@ -98,22 +98,6 @@ export default function Camera({ onCapture, onClose }: CameraProps) {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto"></div>
           <p className="mt-4 text-white">載入相機中...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-        <div className="text-center p-4">
-          <p className="text-red-400 mb-4">{error}</p>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-          >
-            關閉
-          </button>
         </div>
       </div>
     );
@@ -132,7 +116,7 @@ export default function Camera({ onCapture, onClose }: CameraProps) {
         
         <div className="absolute bottom-0 left-0 right-0 p-4 flex justify-center space-x-4">
           <button
-            onClick={onClose}
+            onClick={onCancel}
             className="px-6 py-3 bg-gray-600 text-white rounded-full hover:bg-gray-700"
           >
             取消
