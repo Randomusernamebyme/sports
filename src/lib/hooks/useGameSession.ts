@@ -71,11 +71,12 @@ export const useGameSession = (scriptId: string) => {
         startTime: now,
         lastUpdated: now,
         currentTaskIndex: 0,
-        tasks: {
-          'task-1': { status: 'unlocked' }
-        },
+        tasks: {},
         playCount: 1
       };
+
+      // 初始化第一個任務
+      newSession.tasks['task-1'] = { status: 'unlocked' };
 
       await setDoc(sessionRef, {
         ...newSession,
