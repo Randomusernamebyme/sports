@@ -110,7 +110,7 @@ export const useGameProgress = (scriptId: string) => {
   const startNewGame = async () => {
     try {
       setLoading(true);
-      await createGameSession();
+      await createGameSession(scriptId);
       router.push(`/events/${scriptId}/play`);
     } catch (error) {
       console.error('創建新游戲失敗:', error);
