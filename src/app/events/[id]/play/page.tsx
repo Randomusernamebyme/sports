@@ -77,10 +77,10 @@ export default function PlayPage() {
         });
 
         try {
-          if (gameSession) {
+          if (gameSession && gameSession.tasks) {
             const initialTasks = script.locations.map((location, index) => {
               const taskId = `task-${index + 1}`;
-              const taskStatus = gameSession.tasks?.[taskId]?.status || 'locked';
+              const taskStatus = gameSession.tasks[taskId]?.status || 'locked';
               const isCompleted = taskStatus === 'completed';
               const isUnlocked = taskStatus === 'unlocked' || index <= gameSession.currentTaskIndex;
               
