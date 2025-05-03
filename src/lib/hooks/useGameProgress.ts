@@ -3,7 +3,7 @@ import { useRouter } from 'next/navigation';
 import { useGameSession } from './useGameSession';
 import { useLocation } from './useLocation';
 import { Task, TaskStatus } from '@/types/game';
-import { useUser } from '@/contexts/UserContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 export const useGameProgress = (scriptId: string) => {
   const router = useRouter();
@@ -15,7 +15,7 @@ export const useGameProgress = (scriptId: string) => {
   const [showCamera, setShowCamera] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [playCount, setPlayCount] = useState(0);
-  const { user } = useUser();
+  const { user } = useAuth();
 
   // 初始化任務列表
   useEffect(() => {
