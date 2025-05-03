@@ -77,22 +77,18 @@ export default function PlayPage() {
         });
 
         try {
-          if (gameSession && gameSession.tasks) {
-            const initialTasks = script.locations.map((location, index) => {
+          const initialTasks = script.locations.map((location, index) => {
+            if (gameSession?.tasks) {
               const taskId = `task-${index + 1}`;
               const taskStatus = gameSession.tasks[taskId]?.status || 'locked';
               const isCompleted = taskStatus === 'completed';
-              const isUnlocked = taskStatus === 'unlocked' || index <= gameSession.currentTaskIndex;
-              
+              const isUnlocked = taskStatus === 'unlocked' || index <= (gameSession.currentTaskIndex || 0);
               return createTaskFromLocation(location, index, isCompleted, isUnlocked);
-            });
-            setTasks(initialTasks);
-          } else {
-            const initialTasks = script.locations.map((location, index) => 
-              createTaskFromLocation(location, index, false, index === 0)
-            );
-            setTasks(initialTasks);
-          }
+            } else {
+              return createTaskFromLocation(location, index, false, index === 0);
+            }
+          });
+          setTasks(initialTasks);
         } catch (error) {
           console.error('初始化任務失敗:', error);
           setTaskError('初始化任務失敗，請重試');
