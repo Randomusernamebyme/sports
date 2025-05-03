@@ -277,200 +277,81 @@ export default function PlayPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <div className="flex flex-col h-[100dvh]">
-          {/* 頂部導航欄 */}
-          <div className="bg-white shadow-sm p-4 flex items-center justify-between sticky top-0 z-10">
-            <div className="flex items-center space-x-4">
-              <h1 className="text-xl font-bold">{script.title || '任務進度'}</h1>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                  已完成 {tasks.filter(t => t.status === 'completed').length}/{tasks.length}
-                </span>
-                {playCount > 0 && (
-                  <span className="text-sm text-indigo-500 bg-indigo-100 px-2 py-1 rounded-full">
-                    第 {playCount + 1} 次遊玩
-                  </span>
-                )}
-              </div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* 左側：地圖 */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden h-[600px]">
+              <Map
+                currentLocation={currentLocation}
+                tasks={tasks}
+                onTaskClick={handleTaskClick}
+                apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''}
+              />
             </div>
-            {locationError && (
-              <span className="text-sm text-red-500">{locationError}</span>
-            )}
           </div>
 
-          {/* 主要內容區域 */}
-          <div className="flex-1 flex flex-col md:grid md:grid-cols-2 gap-4 overflow-hidden">
-            {/* 地圖區域 */}
-            <div className="h-[40vh] md:h-[calc(100dvh-5rem)] relative">
-              <div className="relative h-[500px] rounded-lg overflow-hidden">
-                <Map
-                  currentLocation={currentLocation}
-                  tasks={tasks}
-                  onTaskClick={handleTaskClick}
-                  apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''}
-                />
-              </div>
-              {!locationPermissionGranted && (
-                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                  <div className="bg-white p-4 rounded-lg text-center">
-                    <p className="text-gray-600 mb-2">需要位置權限才能進行遊戲</p>
-                    <button
-                      onClick={() => window.location.reload()}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-                    >
-                      重新授權
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* 任務列表區域 */}
-            <div className="flex-1 bg-white overflow-y-auto rounded-lg shadow-sm">
-              <div className="p-4 space-y-4">
+          {/* 右側：任務列表 */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h2 className="text-2xl font-bold mb-6">任務列表</h2>
+              <div className="space-y-4">
                 {tasks.map((task) => (
                   <div
                     key={task.id}
-                    className={`p-4 rounded-lg border transition-all duration-200 ${
+                    className={`p-4 rounded-lg border ${
                       task.status === 'completed'
                         ? 'bg-green-50 border-green-200'
                         : task.status === 'unlocked'
-                        ? 'bg-white border-gray-200 hover:border-indigo-300 hover:shadow-md cursor-pointer'
-                        : 'bg-gray-50 border-gray-200 opacity-50'
+                        ? 'bg-blue-50 border-blue-200'
+                        : 'bg-gray-50 border-gray-200'
                     }`}
-                    onClick={() => task.status === 'unlocked' && handleTaskClick(task)}
                   >
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-medium">{task.title}</h3>
-                      <div className="flex items-center space-x-2">
-                        {task.status === 'completed' ? (
-                          <span className="text-green-600 flex items-center">
-                            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                            </svg>
-                            已完成
-                          </span>
-                        ) : task.status === 'unlocked' ? (
-                          <span className="text-indigo-600 flex items-center">
-                            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                            </svg>
-                            可進行
-                          </span>
-                        ) : (
-                          <span className="text-gray-500 flex items-center">
-                            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                            </svg>
-                            未解鎖
-                          </span>
-                        )}
-                      </div>
+                    <h3 className="font-semibold mb-2">{task.title}</h3>
+                    <p className="text-sm text-gray-600 mb-2">{task.description}</p>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-500">
+                        {task.location.name}
+                      </span>
+                      <button
+                        onClick={() => handleTaskClick(task)}
+                        disabled={task.status === 'locked'}
+                        className={`px-3 py-1 rounded text-sm ${
+                          task.status === 'completed'
+                            ? 'bg-green-100 text-green-800'
+                            : task.status === 'unlocked'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-gray-100 text-gray-400'
+                        }`}
+                      >
+                        {task.status === 'completed'
+                          ? '已完成'
+                          : task.status === 'unlocked'
+                          ? '開始任務'
+                          : '已鎖定'}
+                      </button>
                     </div>
-                    <p className="mt-2 text-sm text-gray-600">{task.description}</p>
-                    {task.distance && (
-                      <div className="mt-2 flex items-center text-xs text-gray-500">
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        距離：{formatDistance(task.distance)}
-                        {task.distance > MAX_DISTANCE && task.status === 'unlocked' && (
-                          <span className="text-red-500 ml-2 flex items-center">
-                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            需要更靠近（至少在1公里內）
-                          </span>
-                        )}
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>
             </div>
           </div>
-
-          {/* 任務詳情模態框 */}
-          {selectedTask && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-              <div className="bg-white rounded-lg max-w-lg w-full max-h-[90vh] overflow-y-auto">
-                <div className="p-6">
-                  <h2 className="text-2xl font-bold mb-4">{selectedTask.title}</h2>
-                  <p className="text-gray-600 mb-6">{selectedTask.description}</p>
-                  
-                  {/* 相機預覽區域 */}
-                  {showCamera ? (
-                    <div className="relative aspect-[4/3] mb-4 bg-black rounded-lg overflow-hidden">
-                      <Camera
-                        onCapture={handlePhotoCapture}
-                        onCancel={handleCancelPhoto}
-                        onError={handleCameraError}
-                      />
-                    </div>
-                  ) : capturedPhoto ? (
-                    <div className="relative aspect-[4/3] mb-4">
-                      <img
-                        src={capturedPhoto}
-                        alt="已拍照片"
-                        className="rounded-lg w-full h-full object-cover"
-                      />
-                      <button
-                        onClick={() => setCapturedPhoto(null)}
-                        className="absolute top-2 right-2 bg-white rounded-full p-2 shadow-lg"
-                      >
-                        重拍
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setShowCamera(true)}
-                      className="w-full py-3 px-4 border border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-indigo-300 hover:text-indigo-600 mb-4"
-                    >
-                      <span className="flex items-center justify-center">
-                        <svg className="w-6 h-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        拍照上傳
-                      </span>
-                    </button>
-                  )}
-
-                  <div className="flex space-x-3">
-                    <button
-                      onClick={() => {
-                        setSelectedTask(null);
-                        setCapturedPhoto(null);
-                      }}
-                      className="flex-1 py-2 px-4 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                    >
-                      取消
-                    </button>
-                    {capturedPhoto && (
-                      <button
-                        onClick={() => handlePhotoCapture(capturedPhoto)}
-                        disabled={isSubmitting}
-                        className="flex-1 py-2 px-4 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
-                      >
-                        {isSubmitting ? '提交中...' : '提交'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {taskError && (
-            <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded z-50">
-              {taskError}
-            </div>
-          )}
         </div>
       </div>
+
+      {/* 相機彈出層 */}
+      {showCamera && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-4 max-w-lg w-full mx-4">
+            <Camera
+              onCapture={handlePhotoCapture}
+              onError={handleCameraError}
+              onCancel={handleCancelPhoto}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 } 
