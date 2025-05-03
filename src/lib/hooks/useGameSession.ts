@@ -15,6 +15,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { GameSession, GameStatus, TaskStatus } from '@/types/game';
+import { sampleScripts } from '@/lib/scripts';
 
 export const useGameSession = (scriptId: string) => {
   const { user } = useAuth();
@@ -62,6 +63,23 @@ export const useGameSession = (scriptId: string) => {
   const createGameSession = async (scriptId: string) => {
     try {
       const now = new Date();
+      const sampleScript = sampleScripts.find(s => s.id === scriptId);
+      
+      if (!sampleScript) {
+        throw new Error('找不到對應的劇本');
+      }
+
+      // 初始化 tasks 對象
+      const tasks: Record<string, { status: TaskStatus; completedAt?: Date; photo?: string }> = {};
+      sampleScript.locations.forEach((_, index) => {
+        const taskId = `task-${index + 1}`;
+        tasks[taskId] = {
+          status: index === 0 ? 'unlocked' : 'locked',
+          completedAt: undefined,
+          photo: undefined
+        };
+      });
+
       const gameSession: GameSession = {
         id: generateId(),
         scriptId,
@@ -70,13 +88,7 @@ export const useGameSession = (scriptId: string) => {
         startTime: now,
         lastUpdated: now,
         currentTaskIndex: 0,
-        tasks: {
-          'task-1': {
-            status: 'unlocked',
-            completedAt: undefined,
-            photo: undefined
-          }
-        },
+        tasks,
         playCount: 1
       };
 
@@ -91,74 +103,37 @@ export const useGameSession = (scriptId: string) => {
 
   // 更新任務狀態
   const updateTaskStatus = async (taskId: string, status: TaskStatus, photo?: string) => {
-    if (!user || !gameSession) {
-      throw new Error('無效的游戲會話');
+    if (!gameSession) {
+      throw new Error('遊戲會話不存在');
     }
 
     try {
       const sessionRef = doc(db, 'gameSessions', gameSession.id);
-      const taskIndex = parseInt(taskId.split('-')[1]) - 1;
-
-      await runTransaction(db, async (transaction) => {
-        const sessionDoc = await transaction.get(sessionRef);
-        if (!sessionDoc.exists()) {
-          throw new Error('找不到游戲會話');
+      const updatedTasks = {
+        ...gameSession.tasks,
+        [taskId]: {
+          status,
+          completedAt: status === 'completed' ? new Date() : undefined,
+          photo
         }
+      };
 
-        const sessionData = sessionDoc.data() as GameSession;
-        if (sessionData.userId !== user.uid) {
-          throw new Error('無權限更新此游戲會話');
-        }
-
-        // 更新任務狀態
-        const updatedTasks = {
-          ...sessionData.tasks,
-          [taskId]: {
-            status,
-            completedAt: status === 'completed' ? serverTimestamp() : undefined,
-            photo
-          }
-        };
-
-        // 如果任務完成，解鎖下一個任務
-        if (status === 'completed' && taskIndex < sessionData.currentTaskIndex) {
-          const nextTaskId = `task-${taskIndex + 2}`;
-          updatedTasks[nextTaskId] = { status: 'unlocked' };
-        }
-
-        // 檢查是否所有任務都已完成
-        const allTasksCompleted = Object.values(updatedTasks).every(
-          task => task.status === 'completed'
-        );
-
-        transaction.update(sessionRef, {
-          tasks: updatedTasks,
-          currentTaskIndex: Math.max(sessionData.currentTaskIndex, taskIndex + 1),
-          status: allTasksCompleted ? 'completed' : 'in_progress',
-          endTime: allTasksCompleted ? serverTimestamp() : undefined,
-          lastUpdated: serverTimestamp()
-        });
+      await updateDoc(sessionRef, {
+        tasks: updatedTasks,
+        lastUpdated: Timestamp.now()
       });
 
-      // 更新本地狀態
-      const updatedSession = await getDoc(sessionRef);
-      const sessionData = updatedSession.data() as GameSession;
       setGameSession({
-        ...sessionData,
-        id: updatedSession.id,
-        startTime: sessionData.startTime instanceof Timestamp ? sessionData.startTime.toDate() : new Date(sessionData.startTime),
-        lastUpdated: sessionData.lastUpdated instanceof Timestamp ? sessionData.lastUpdated.toDate() : new Date(sessionData.lastUpdated),
-        endTime: sessionData.endTime ? (sessionData.endTime instanceof Timestamp ? sessionData.endTime.toDate() : new Date(sessionData.endTime)) : undefined
+        ...gameSession,
+        tasks: updatedTasks
       });
-
-      return true;
     } catch (error) {
       console.error('更新任務狀態失敗:', error);
       throw error;
     }
   };
 
-  // 初始化游戲會話
+  // 初始化遊戲會話
   useEffect(() => {
     const initGameSession = async () => {
       if (!user) {
@@ -167,14 +142,29 @@ export const useGameSession = (scriptId: string) => {
       }
 
       try {
-        // 檢查是否有進行中的游戲
-        const inProgressSession = await checkInProgressGame();
-        if (inProgressSession) {
-          setGameSession(inProgressSession);
+        const sessionsRef = collection(db, 'gameSessions');
+        const q = query(
+          sessionsRef,
+          where('userId', '==', user.uid),
+          where('scriptId', '==', scriptId),
+          where('status', '==', 'in_progress')
+        );
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+          const doc = querySnapshot.docs[0];
+          const data = doc.data();
+          setGameSession({
+            ...data,
+            id: doc.id,
+            startTime: data.startTime instanceof Timestamp ? data.startTime.toDate() : new Date(data.startTime),
+            lastUpdated: data.lastUpdated instanceof Timestamp ? data.lastUpdated.toDate() : new Date(data.lastUpdated),
+            endTime: data.endTime ? (data.endTime instanceof Timestamp ? data.endTime.toDate() : new Date(data.endTime)) : undefined
+          } as GameSession);
         }
       } catch (error) {
-        console.error('初始化游戲會話失敗:', error);
-        setError('初始化游戲會話失敗');
+        console.error('初始化遊戲會話失敗:', error);
+        setError('初始化遊戲會話失敗');
       } finally {
         setLoading(false);
       }
