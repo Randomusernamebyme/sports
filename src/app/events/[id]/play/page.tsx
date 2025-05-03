@@ -45,7 +45,14 @@ export default function PlayPage() {
 
   useEffect(() => {
     if (userLocation) {
-      setCurrentLocation(userLocation);
+      setCurrentLocation({
+        name: '當前位置',
+        address: '',
+        coordinates: {
+          lat: userLocation.coordinates.lat,
+          lng: userLocation.coordinates.lng
+        }
+      });
     }
   }, [userLocation]);
 
@@ -70,7 +77,6 @@ export default function PlayPage() {
         });
 
         if (gameSession) {
-          // 如果有進行中的游戲，直接使用現有的游戲進度
           const initialTasks = script.locations.map((location, index) => 
             createTaskFromLocation(
               location,
@@ -81,7 +87,6 @@ export default function PlayPage() {
           );
           setTasks(initialTasks);
         } else {
-          // 如果沒有進行中的游戲，創建新的任務列表
           const initialTasks = script.locations.map((location, index) => 
             createTaskFromLocation(location, index, false, index === 0)
           );
@@ -93,17 +98,19 @@ export default function PlayPage() {
     }
 
     if (typeof window !== 'undefined') {
-      // 檢查位置權限
       navigator.permissions.query({ name: 'geolocation' })
         .then(permissionStatus => {
           if (permissionStatus.state === 'granted') {
             setLocationPermissionGranted(true);
-            // 如果已經有權限，立即獲取位置
             navigator.geolocation.getCurrentPosition(
               (position) => {
                 setCurrentLocation({
-                  lat: position.coords.latitude,
-                  lng: position.coords.longitude
+                  name: '當前位置',
+                  address: '',
+                  coordinates: {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                  }
                 });
                 setLocationError(null);
               },
@@ -118,13 +125,16 @@ export default function PlayPage() {
               }
             );
           } else if (permissionStatus.state === 'prompt') {
-            // 請求位置權限
             navigator.geolocation.getCurrentPosition(
               (position) => {
                 setLocationPermissionGranted(true);
                 setCurrentLocation({
-                  lat: position.coords.latitude,
-                  lng: position.coords.longitude
+                  name: '當前位置',
+                  address: '',
+                  coordinates: {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                  }
                 });
                 setLocationError(null);
               },
@@ -277,7 +287,7 @@ export default function PlayPage() {
             )}
           </div>
 
-          {/* 主要內容區域 - 使用 flex-col 在手機版上垂直排列 */}
+          {/* 主要內容區域 */}
           <div className="flex-1 flex flex-col md:grid md:grid-cols-2 gap-4 overflow-hidden">
             {/* 地圖區域 */}
             <div className="h-[40vh] md:h-[calc(100dvh-5rem)] relative">
@@ -304,7 +314,7 @@ export default function PlayPage() {
               )}
             </div>
 
-            {/* 任務列表區域 - 可滾動 */}
+            {/* 任務列表區域 */}
             <div className="flex-1 bg-white overflow-y-auto rounded-lg shadow-sm">
               <div className="p-4 space-y-4">
                 {tasks.map((task) => (
@@ -313,13 +323,11 @@ export default function PlayPage() {
                     className={`p-4 rounded-lg border transition-all duration-200 ${
                       task.status === 'completed'
                         ? 'bg-green-50 border-green-200'
-                        : task.status === 'failed'
-                        ? 'bg-red-50 border-red-200'
-                        : task.isUnlocked
+                        : task.status === 'unlocked'
                         ? 'bg-white border-gray-200 hover:border-indigo-300 hover:shadow-md cursor-pointer'
                         : 'bg-gray-50 border-gray-200 opacity-50'
                     }`}
-                    onClick={() => task.isUnlocked && handleTaskClick(task)}
+                    onClick={() => task.status === 'unlocked' && handleTaskClick(task)}
                   >
                     <div className="flex items-center justify-between">
                       <h3 className="font-medium">{task.title}</h3>
@@ -331,14 +339,7 @@ export default function PlayPage() {
                             </svg>
                             已完成
                           </span>
-                        ) : task.status === 'failed' ? (
-                          <span className="text-red-600 flex items-center">
-                            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                            失敗
-                          </span>
-                        ) : task.isUnlocked ? (
+                        ) : task.status === 'unlocked' ? (
                           <span className="text-indigo-600 flex items-center">
                             <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
@@ -363,7 +364,7 @@ export default function PlayPage() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
                         距離：{formatDistance(task.distance)}
-                        {task.distance > MAX_DISTANCE && task.isUnlocked && (
+                        {task.distance > MAX_DISTANCE && task.status === 'unlocked' && (
                           <span className="text-red-500 ml-2 flex items-center">
                             <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -372,14 +373,6 @@ export default function PlayPage() {
                           </span>
                         )}
                       </div>
-                    )}
-                    {task.errorMessage && (
-                      <p className="mt-2 text-xs text-red-500 flex items-center">
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        {task.errorMessage}
-                      </p>
                     )}
                   </div>
                 ))}
@@ -445,7 +438,7 @@ export default function PlayPage() {
                     </button>
                     {capturedPhoto && (
                       <button
-                        onClick={handlePhotoCapture}
+                        onClick={() => handlePhotoCapture(capturedPhoto)}
                         disabled={isSubmitting}
                         className="flex-1 py-2 px-4 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
                       >
