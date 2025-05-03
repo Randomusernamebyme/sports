@@ -42,9 +42,9 @@ export const useGameSession = (scriptId: string) => {
         return {
           ...data,
           id: doc.id,
-          startTime: data.startTime.toDate(),
-          lastUpdated: data.lastUpdated.toDate(),
-          endTime: data.endTime?.toDate(),
+          startTime: data.startTime instanceof Timestamp ? data.startTime.toDate() : new Date(data.startTime),
+          lastUpdated: data.lastUpdated instanceof Timestamp ? data.lastUpdated.toDate() : new Date(data.lastUpdated),
+          endTime: data.endTime ? (data.endTime instanceof Timestamp ? data.endTime.toDate() : new Date(data.endTime)) : undefined,
         } as GameSession;
       }
       return null;
@@ -150,9 +150,9 @@ export const useGameSession = (scriptId: string) => {
       setGameSession({
         ...sessionData,
         id: updatedSession.id,
-        startTime: sessionData.startTime.toDate(),
-        lastUpdated: sessionData.lastUpdated.toDate(),
-        endTime: sessionData.endTime?.toDate()
+        startTime: sessionData.startTime instanceof Timestamp ? sessionData.startTime.toDate() : new Date(sessionData.startTime),
+        lastUpdated: sessionData.lastUpdated instanceof Timestamp ? sessionData.lastUpdated.toDate() : new Date(sessionData.lastUpdated),
+        endTime: sessionData.endTime ? (sessionData.endTime instanceof Timestamp ? sessionData.endTime.toDate() : new Date(sessionData.endTime)) : undefined
       });
 
       return true;
