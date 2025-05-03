@@ -78,16 +78,16 @@ export default function PlayPage() {
 
         try {
           const initialTasks = script.locations.map((location, index) => {
-            if (gameSession?.tasks) {
-              const taskId = `task-${index + 1}`;
-              const taskStatus = gameSession.tasks[taskId]?.status || 'locked';
-              const isCompleted = taskStatus === 'completed';
-              const isUnlocked = taskStatus === 'unlocked' || index <= (gameSession.currentTaskIndex || 0);
-              return createTaskFromLocation(location, index, isCompleted, isUnlocked);
-            } else {
-              return createTaskFromLocation(location, index, false, index === 0);
-            }
+            const taskId = `task-${index + 1}`;
+            
+            // 使用可選鏈和空值合併運算符來安全地獲取任務狀態
+            const taskStatus = gameSession?.tasks?.[taskId]?.status ?? 'locked';
+            const isCompleted = taskStatus === 'completed';
+            const isUnlocked = taskStatus === 'unlocked' || index <= (gameSession?.currentTaskIndex ?? 0);
+            
+            return createTaskFromLocation(location, index, isCompleted, isUnlocked);
           });
+          
           setTasks(initialTasks);
         } catch (error) {
           console.error('初始化任務失敗:', error);
