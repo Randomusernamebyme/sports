@@ -13,6 +13,7 @@ export const useGameProgress = (scriptId: string) => {
   const [error, setError] = useState<string | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [playCount, setPlayCount] = useState(0);
 
   // 初始化任務列表
   useEffect(() => {
@@ -119,6 +120,19 @@ export const useGameProgress = (scriptId: string) => {
     }
   };
 
+  // 處理游戲完成
+  const handleGameComplete = async () => {
+    if (!gameSession) return;
+    
+    try {
+      await updateTaskStatus('complete', 'completed');
+      setPlayCount(prev => prev + 1);
+      router.push(`/events/${scriptId}/complete/${gameSession.id}`);
+    } catch (error) {
+      setError('完成游戲時發生錯誤');
+    }
+  };
+
   return {
     tasks,
     loading: loading || sessionLoading || locationLoading,
@@ -128,6 +142,11 @@ export const useGameProgress = (scriptId: string) => {
     handleTaskClick,
     handlePhotoCapture,
     startNewGame,
-    setShowCamera
+    setShowCamera,
+    gameSession,
+    createGameSession,
+    updateTaskStatus,
+    handleGameComplete,
+    playCount
   };
 }; 
