@@ -54,43 +54,38 @@ export const useGameSession = (scriptId: string) => {
     }
   };
 
+  const generateId = () => {
+    return Math.random().toString(36).substring(2, 15);
+  };
+
   // 創建新的游戲會話
-  const createGameSession = async () => {
-    if (!user) {
-      throw new Error('用戶未登入');
-    }
-
+  const createGameSession = async (scriptId: string) => {
     try {
-      const sessionRef = doc(collection(db, 'gameSessions'));
       const now = new Date();
-
-      const newSession: Omit<GameSession, 'id'> = {
-        userId: user.uid,
+      const gameSession: GameSession = {
+        id: generateId(),
         scriptId,
+        userId: user?.uid || '',
         status: 'in_progress',
         startTime: now,
         lastUpdated: now,
         currentTaskIndex: 0,
-        tasks: {},
+        tasks: {
+          'task-1': {
+            status: 'unlocked',
+            completedAt: undefined,
+            photo: undefined
+          }
+        },
         playCount: 1
       };
 
-      // 初始化第一個任務
-      newSession.tasks['task-1'] = { status: 'unlocked' };
-
-      await setDoc(sessionRef, {
-        ...newSession,
-        startTime: Timestamp.fromDate(now),
-        lastUpdated: Timestamp.fromDate(now)
-      });
-
-      return {
-        ...newSession,
-        id: sessionRef.id
-      } as GameSession;
+      await setDoc(doc(db, 'gameSessions', gameSession.id), gameSession);
+      setGameSession(gameSession);
+      return gameSession;
     } catch (error) {
-      console.error('創建游戲會話失敗:', error);
-      throw new Error('創建游戲會話失敗');
+      console.error('創建遊戲會話失敗:', error);
+      throw error;
     }
   };
 
