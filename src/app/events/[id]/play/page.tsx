@@ -11,27 +11,8 @@ import { useGameProgress } from '@/lib/hooks/useGameProgress';
 import { useRouter } from 'next/navigation';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
-import { GameSession } from '@/types';
-
-interface Task {
-  id: string;
-  title: string;
-  description: string;
-  location: {
-    name: string;
-    address: string;
-    coordinates: {
-      lat: number;
-      lng: number;
-    };
-  };
-  isCompleted: boolean;
-  isUnlocked: boolean;
-  photo?: string;
-  distance?: number;
-  status?: 'success' | 'failed' | 'in_progress';
-  errorMessage?: string;
-}
+import { GameSession, Task, TaskStatus, Location } from '@/types/game';
+import { useLocation } from '@/lib/hooks/useLocation';
 
 export default function PlayPage() {
   const { id } = useParams();
@@ -40,10 +21,7 @@ export default function PlayPage() {
   const script = sampleScripts.find(s => s.id === id);
   const mode = searchParams.get('mode');
   const roomCode = searchParams.get('room');
-  const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>({
-    lat: 22.2783,
-    lng: 114.1827
-  });
+  const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showCamera, setShowCamera] = useState(false);
@@ -58,12 +36,18 @@ export default function PlayPage() {
     loading, 
     error, 
     createGameSession, 
-    updateGameProgress, 
     handleGameComplete,
     updateTaskStatus,
     playCount 
   } = useGameProgress(id as string);
   const router = useRouter();
+  const { currentLocation: userLocation, error: userLocationError } = useLocation();
+
+  useEffect(() => {
+    if (userLocation) {
+      setCurrentLocation(userLocation);
+    }
+  }, [userLocation]);
 
   useEffect(() => {
     if (script) {
@@ -80,9 +64,9 @@ export default function PlayPage() {
               lng: Number(location.coordinates.longitude)
             }
           },
-          isCompleted,
-          isUnlocked,
-          status: isCompleted ? 'success' : undefined
+          status: isCompleted ? 'completed' : isUnlocked ? 'unlocked' : 'locked' as TaskStatus,
+          photo: undefined,
+          distance: undefined
         });
 
         if (gameSession) {
@@ -91,57 +75,17 @@ export default function PlayPage() {
             createTaskFromLocation(
               location,
               index,
-              gameSession.completedLocations.includes(`task-${index + 1}`),
-              index <= gameSession.currentLocationIndex
+              gameSession.tasks[`task-${index + 1}`]?.status === 'completed',
+              index <= gameSession.currentTaskIndex
             )
           );
           setTasks(initialTasks);
         } else {
-          try {
-            // 檢查是否有進行中的游戲
-            const sessionsRef = collection(db, 'gameSessions');
-            const q = query(
-              sessionsRef,
-              where('userId', '==', user?.uid),
-              where('scriptId', '==', script.id),
-              where('status', '==', 'in_progress')
-            );
-            const querySnapshot = await getDocs(q);
-
-            if (!querySnapshot.empty) {
-              // 如果有進行中的游戲，使用該游戲進度
-              const doc = querySnapshot.docs[0];
-              const session = {
-                ...doc.data(),
-                id: doc.id,
-                startTime: doc.data().startTime.toDate(),
-                lastUpdated: doc.data().lastUpdated.toDate(),
-                endTime: doc.data().endTime?.toDate(),
-              } as GameSession;
-              
-              const initialTasks = script.locations.map((location, index) => 
-                createTaskFromLocation(
-                  location,
-                  index,
-                  session.completedLocations.includes(`task-${index + 1}`),
-                  index <= session.currentLocationIndex
-                )
-              );
-              setTasks(initialTasks);
-            } else {
-              // 如果沒有進行中的游戲，創建新的游戲進度
-              const newSession = await createGameSession();
-              if (newSession) {
-                const initialTasks = script.locations.map((location, index) => 
-                  createTaskFromLocation(location, index, false, index === 0)
-                );
-                setTasks(initialTasks);
-              }
-            }
-          } catch (error) {
-            console.error('創建遊戲進度失敗:', error);
-            setTaskError('無法創建遊戲進度');
-          }
+          // 如果沒有進行中的游戲，創建新的任務列表
+          const initialTasks = script.locations.map((location, index) => 
+            createTaskFromLocation(location, index, false, index === 0)
+          );
+          setTasks(initialTasks);
         }
       };
 
@@ -205,177 +149,84 @@ export default function PlayPage() {
           setLocationError('無法檢查位置權限，請確保瀏覽器支援位置服務');
         });
     }
-  }, [script, gameSession, createGameSession, user]);
+  }, [script, gameSession]);
 
-  const isValidCoordinates = (lat: number, lng: number): boolean => {
-    return (
-      typeof lat === 'number' &&
-      typeof lng === 'number' &&
-      !isNaN(lat) &&
-      !isNaN(lng) &&
-      lat >= -90 &&
-      lat <= 90 &&
-      lng >= -180 &&
-      lng <= 180
-    );
-  };
-
-  // 計算兩點之間的距離（米）
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
     const R = 6371e3; // 地球半徑（米）
-    const φ1 = lat1 * Math.PI/180;
-    const φ2 = lat2 * Math.PI/180;
-    const Δφ = (lat2-lat1) * Math.PI/180;
-    const Δλ = (lon2-lon1) * Math.PI/180;
+    const φ1 = (lat1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180;
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
 
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ/2) * Math.sin(Δλ/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) *
+      Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
     return R * c;
   };
 
-  // 更新任務距離
-  useEffect(() => {
-    if (currentLocation) {
-      const updatedTasks = tasks.map(task => {
-        const distance = calculateDistance(
-          currentLocation.lat,
-          currentLocation.lng,
-          task.location.coordinates.lat,
-          task.location.coordinates.lng
-        );
-        return {
-          ...task,
-          distance
-        };
-      });
-      setTasks(updatedTasks);
-    }
-  }, [currentLocation]);
-
-  // 格式化距離顯示
   const formatDistance = (meters: number) => {
-    if (meters >= 1000) {
-      return `${(meters / 1000).toFixed(1)}公里`;
+    if (meters < 1000) {
+      return `${Math.round(meters)} 米`;
+    } else {
+      return `${(meters / 1000).toFixed(1)} 公里`;
     }
-    return `${Math.round(meters)}米`;
   };
 
-  const handleTaskClick = (taskId: string) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (task) {
-      if (!task.isUnlocked) {
-        setTaskError('此任務尚未解鎖');
-        return;
-      }
+  const handleTaskClick = async (task: Task) => {
+    if (task.status === 'locked') {
+      return;
+    }
 
-      if (!currentLocation) {
-        setTaskError('無法獲取當前位置');
+    if (task.status === 'unlocked') {
+      if (!userLocation) {
+        setTaskError('無法獲取當前位置，請確保已開啟位置服務');
         return;
       }
 
       const distance = calculateDistance(
-        currentLocation.lat,
-        currentLocation.lng,
+        userLocation.coordinates.lat,
+        userLocation.coordinates.lng,
         task.location.coordinates.lat,
         task.location.coordinates.lng
       );
 
       if (distance > MAX_DISTANCE) {
-        setTaskError(`您需要更靠近任務地點（當前距離：${formatDistance(distance)}）`);
+        setTaskError(`您距離目標地點太遠（當前距離：${formatDistance(distance)}）`);
         return;
       }
 
       setSelectedTask(task);
-      setTaskError(null);
+      setShowCamera(true);
     }
   };
 
-  const handleTakePhoto = () => {
-    setShowCamera(true);
-  };
+  const handlePhotoCapture = async (photo: string) => {
+    if (!selectedTask) return;
 
-  const handlePhotoCapture = (photo: string) => {
-    if (selectedTask) {
-      setTasks(tasks.map(task =>
-        task.id === selectedTask.id
-          ? { ...task, photo }
-          : task
-      ));
+    try {
+      setIsSubmitting(true);
+      await updateTaskStatus(selectedTask.id, 'completed', photo);
       setCapturedPhoto(photo);
       setShowCamera(false);
+      setSelectedTask(null);
+    } catch (error) {
+      console.error('更新任務狀態失敗:', error);
+      setTaskError('更新任務狀態失敗，請重試');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleCameraError = (error: string) => {
     setTaskError(error);
     setShowCamera(false);
-    setSelectedTask(null);
   };
 
   const handleCancelPhoto = () => {
     setShowCamera(false);
     setSelectedTask(null);
-  };
-
-  const handleSubmit = async () => {
-    if (!selectedTask || !capturedPhoto) {
-      setTaskError('請先拍攝照片');
-      return;
-    }
-
-    setIsSubmitting(true);
-    setTaskError(null);
-
-    try {
-      // 更新任務狀態為完成
-      await updateTaskStatus(selectedTask.id, 'completed');
-
-      // 更新本地任務狀態
-      setTasks(prevTasks => {
-        const updatedTasks = prevTasks.map(task => {
-          if (task.id === selectedTask.id) {
-            // 更新當前任務為已完成
-            return {
-              ...task,
-              isCompleted: true,
-              status: 'success' as const,
-              photo: capturedPhoto
-            };
-          } else if (!task.isUnlocked && task.id === `task-${parseInt(selectedTask.id.split('-')[1]) + 1}`) {
-            // 解鎖下一個任務
-            return {
-              ...task,
-              isUnlocked: true
-            };
-          }
-          return task;
-        });
-
-        return updatedTasks;
-      });
-
-      // 重置狀態
-      setSelectedTask(null);
-      setCapturedPhoto(null);
-      setShowCamera(false);
-    } catch (error) {
-      console.error('提交任務失敗:', error);
-      setTaskError('提交任務時發生錯誤，請稍後重試');
-
-      // 更新失敗狀態
-      setTasks(prevTasks =>
-        prevTasks.map(task =>
-          task.id === selectedTask.id
-            ? { ...task, status: 'failed' as const, errorMessage: '提交失敗，請重試' }
-            : task
-        )
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   if (!script) {
@@ -391,6 +242,17 @@ export default function PlayPage() {
     );
   }
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">載入中...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -401,7 +263,7 @@ export default function PlayPage() {
               <h1 className="text-xl font-bold">{script.title || '任務進度'}</h1>
               <div className="flex items-center space-x-2">
                 <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                  已完成 {tasks.filter(t => t.isCompleted).length}/{tasks.length}
+                  已完成 {tasks.filter(t => t.status === 'completed').length}/{tasks.length}
                 </span>
                 {playCount > 0 && (
                   <span className="text-sm text-indigo-500 bg-indigo-100 px-2 py-1 rounded-full">
@@ -419,11 +281,14 @@ export default function PlayPage() {
           <div className="flex-1 flex flex-col md:grid md:grid-cols-2 gap-4 overflow-hidden">
             {/* 地圖區域 */}
             <div className="h-[40vh] md:h-[calc(100dvh-5rem)] relative">
-              <Map
-                currentLocation={currentLocation}
-                tasks={tasks}
-                onTaskClick={handleTaskClick}
-              />
+              <div className="relative h-[500px] rounded-lg overflow-hidden">
+                <Map
+                  currentLocation={currentLocation}
+                  tasks={tasks}
+                  onTaskClick={handleTaskClick}
+                  apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''}
+                />
+              </div>
               {!locationPermissionGranted && (
                 <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
                   <div className="bg-white p-4 rounded-lg text-center">
@@ -446,7 +311,7 @@ export default function PlayPage() {
                   <div
                     key={task.id}
                     className={`p-4 rounded-lg border transition-all duration-200 ${
-                      task.status === 'success'
+                      task.status === 'completed'
                         ? 'bg-green-50 border-green-200'
                         : task.status === 'failed'
                         ? 'bg-red-50 border-red-200'
@@ -454,12 +319,12 @@ export default function PlayPage() {
                         ? 'bg-white border-gray-200 hover:border-indigo-300 hover:shadow-md cursor-pointer'
                         : 'bg-gray-50 border-gray-200 opacity-50'
                     }`}
-                    onClick={() => task.isUnlocked && handleTaskClick(task.id)}
+                    onClick={() => task.isUnlocked && handleTaskClick(task)}
                   >
                     <div className="flex items-center justify-between">
                       <h3 className="font-medium">{task.title}</h3>
                       <div className="flex items-center space-x-2">
-                        {task.status === 'success' ? (
+                        {task.status === 'completed' ? (
                           <span className="text-green-600 flex items-center">
                             <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
@@ -580,7 +445,7 @@ export default function PlayPage() {
                     </button>
                     {capturedPhoto && (
                       <button
-                        onClick={handleSubmit}
+                        onClick={handlePhotoCapture}
                         disabled={isSubmitting}
                         className="flex-1 py-2 px-4 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
                       >
