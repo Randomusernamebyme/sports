@@ -193,35 +193,40 @@ export default function PlayPage() {
   };
 
   const handleTaskClick = async (task: Task) => {
-    if (task.status === 'locked') {
+    if (!gameSession?.tasks) {
+      console.warn('遊戲會話尚未初始化，無法處理任務點擊');
       return;
     }
 
-    if (task.status === 'unlocked') {
-      if (!userLocation) {
-        setTaskError('無法獲取當前位置，請確保已開啟位置服務');
-        return;
-      }
+    const taskStatus = gameSession.tasks[task.id]?.status || 'locked';
+    if (taskStatus === 'locked') {
+      console.log('任務已鎖定，無法點擊');
+      return;
+    }
 
+    if (currentLocation && task.location) {
       const distance = calculateDistance(
-        userLocation.coordinates.lat,
-        userLocation.coordinates.lng,
+        currentLocation.coordinates.lat,
+        currentLocation.coordinates.lng,
         task.location.coordinates.lat,
         task.location.coordinates.lng
       );
 
       if (distance > MAX_DISTANCE) {
-        setTaskError(`您距離目標地點太遠（當前距離：${formatDistance(distance)}）`);
+        setTaskError(`您距離目標地點太遠（${formatDistance(distance)}）`);
         return;
       }
-
-      setSelectedTask(task);
-      setShowCamera(true);
     }
+
+    setSelectedTask(task);
+    setShowCamera(true);
   };
 
   const handlePhotoCapture = async (photo: string) => {
-    if (!selectedTask) return;
+    if (!selectedTask || !gameSession?.tasks) {
+      console.warn('無法處理照片：任務或遊戲會話未初始化');
+      return;
+    }
 
     try {
       setIsSubmitting(true);
