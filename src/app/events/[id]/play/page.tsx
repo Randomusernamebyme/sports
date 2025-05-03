@@ -193,18 +193,31 @@ export default function PlayPage() {
   };
 
   const handleTaskClick = async (task: Task) => {
-    if (!gameSession?.tasks) {
-      console.warn('遊戲會話尚未初始化，無法處理任務點擊');
-      return;
-    }
+    try {
+      if (!gameSession?.tasks) {
+        console.warn('遊戲會話尚未初始化，無法處理任務點擊');
+        setTaskError('遊戲會話尚未初始化，請稍後重試');
+        return;
+      }
 
-    const taskStatus = gameSession.tasks[task.id]?.status || 'locked';
-    if (taskStatus === 'locked') {
-      console.log('任務已鎖定，無法點擊');
-      return;
-    }
+      if (task.status === 'locked') {
+        console.log('任務已鎖定，無法點擊');
+        setTaskError('此任務尚未解鎖');
+        return;
+      }
 
-    if (currentLocation && task.location) {
+      if (task.status === 'completed') {
+        console.log('任務已完成');
+        setTaskError('此任務已完成');
+        return;
+      }
+
+      if (!currentLocation) {
+        console.warn('無法獲取當前位置');
+        setTaskError('無法獲取當前位置，請確保已開啟位置服務');
+        return;
+      }
+
       const distance = calculateDistance(
         currentLocation.coordinates.lat,
         currentLocation.coordinates.lng,
@@ -213,13 +226,18 @@ export default function PlayPage() {
       );
 
       if (distance > MAX_DISTANCE) {
-        setTaskError(`您距離目標地點太遠（${formatDistance(distance)}）`);
+        console.log(`距離目標地點太遠：${formatDistance(distance)}`);
+        setTaskError(`您距離目標地點太遠（${formatDistance(distance)}），請靠近一點`);
         return;
       }
-    }
 
-    setSelectedTask(task);
-    setShowCamera(true);
+      setSelectedTask(task);
+      setShowCamera(true);
+      setTaskError(null);
+    } catch (error) {
+      console.error('處理任務點擊時發生錯誤:', error);
+      setTaskError('處理任務時發生錯誤，請稍後重試');
+    }
   };
 
   const handlePhotoCapture = async (photo: string) => {
