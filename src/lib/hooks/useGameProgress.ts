@@ -155,6 +155,8 @@ export const useGameProgress = (scriptId: string) => {
     startNewGame,
     setShowCamera,
     gameSession,
+    createGameSession,
+    updateTaskStatus,
     handleGameComplete,
     playCount
   };
