@@ -77,13 +77,20 @@ export default function PlayPage() {
         });
 
         try {
+          console.log('gameSession:', gameSession);
+          console.log('gameSession?.tasks:', gameSession?.tasks);
+
           const initialTasks = script.locations.map((location, index) => {
             const taskId = `task-${index + 1}`;
             
-            // 使用可選鏈和空值合併運算符來安全地獲取任務狀態
-            const taskStatus = gameSession?.tasks?.[taskId]?.status ?? 'locked';
+            if (!gameSession?.tasks) {
+              console.log(`任務 ${taskId} 尚未初始化，使用默認狀態`);
+              return createTaskFromLocation(location, index, false, index === 0);
+            }
+
+            const taskStatus = gameSession.tasks[taskId]?.status || 'locked';
             const isCompleted = taskStatus === 'completed';
-            const isUnlocked = taskStatus === 'unlocked' || index <= (gameSession?.currentTaskIndex ?? 0);
+            const isUnlocked = taskStatus === 'unlocked' || index <= (gameSession.currentTaskIndex || 0);
             
             return createTaskFromLocation(location, index, isCompleted, isUnlocked);
           });
