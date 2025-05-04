@@ -458,247 +458,144 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">個人中心</h1>
-            {!isEditing && (
+    <div className="min-h-screen bg-primary-50">
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <div className="bg-white rounded-lg shadow-sm border border-primary-100 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-2xl font-bold text-primary-900">個人中心</h1>
+            {!isEditing ? (
               <button
                 onClick={() => setIsEditing(true)}
-                className="px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-500"
+                className="btn-primary"
               >
                 編輯資料
               </button>
+            ) : (
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSave}
+                  disabled={isLoading}
+                  className="btn-primary"
+                >
+                  {isLoading ? '保存中...' : '保存'}
+                </button>
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="btn-secondary"
+                >
+                  取消
+                </button>
+              </div>
             )}
           </div>
 
           {error && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-sm text-red-600">{error}</p>
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-600">
+              {error}
             </div>
           )}
 
           {successMessage && (
-            <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-md">
-              <p className="text-sm text-green-600">{successMessage}</p>
+            <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-600">
+              {successMessage}
             </div>
           )}
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                顯示名稱
-              </label>
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
-              ) : (
-                <p className="text-gray-900">{displayName || '未設置'}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                電子郵件
-              </label>
-              <p className="text-gray-900">{user?.email || '未設置'}</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                手機號碼
-              </label>
-              {user?.phoneNumber ? (
-                <p className="text-gray-900">{user.phoneNumber}</p>
-              ) : (
-                <button
-                  onClick={() => setShowPhoneModal(true)}
-                  className="text-indigo-600 hover:text-indigo-500"
-                >
-                  添加手機號碼
-                </button>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                密碼
-              </label>
-              {showPasswordInput ? (
-                <div className="space-y-4">
-                  {user.providerData.some(provider => provider.providerId === 'password') && (
-                    <input
-                      type="password"
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      placeholder="當前密碼"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    />
-                  )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-primary-700 mb-1">
+                  顯示名稱
+                </label>
+                {isEditing ? (
                   <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="新密碼"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    className="w-full px-3 py-2 border border-primary-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   />
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="確認新密碼"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  />
-                  <div className="flex space-x-3">
-                    <button
-                      onClick={() => {
-                        setShowPasswordInput(false);
-                        setCurrentPassword('');
-                        setNewPassword('');
-                        setConfirmPassword('');
-                      }}
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                    >
-                      取消
-                    </button>
-                    <button
-                      onClick={handlePasswordChange}
-                      disabled={isLoading}
-                      className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
-                    >
-                      {isLoading ? '更新中...' : '更新密碼'}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setShowPasswordInput(true)}
-                  className="text-indigo-600 hover:text-indigo-500"
-                >
-                  {user.providerData.some(provider => provider.providerId === 'password')
-                    ? '修改密碼'
-                    : '設置密碼'}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {isEditing && (
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={handleSave}
-                disabled={isLoading}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
-              >
-                {isLoading ? '保存中...' : '保存'}
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* 手機號碼驗證模態框 */}
-        {showPhoneModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-md w-full p-6">
-              <h2 className="text-xl font-bold mb-4">添加手機號碼</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    手機號碼
-                  </label>
-                  <div className="flex">
-                    <span className="inline-flex items-center px-3 py-2 border border-r-0 border-gray-300 rounded-l-md bg-gray-50 text-gray-500">
-                      +852
-                    </span>
-                    <input
-                      type="tel"
-                      value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
-                      placeholder="輸入8位數字"
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-r-md focus:ring-indigo-500 focus:border-indigo-500"
-                      maxLength={8}
-                    />
-                  </div>
-                  <p className="mt-1 text-xs text-gray-500">
-                    請輸入8位數字的手機號碼
-                  </p>
-                </div>
-
-                {isVerifying && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      驗證碼
-                    </label>
-                    <input
-                      type="text"
-                      value={verificationCode}
-                      onChange={(e) => setVerificationCode(e.target.value)}
-                      placeholder="輸入驗證碼"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    />
-                  </div>
+                ) : (
+                  <p className="text-primary-900">{displayName}</p>
                 )}
+              </div>
 
-                <div className="flex justify-end space-x-3">
-                  <button
-                    onClick={() => {
-                      setShowPhoneModal(false);
-                      setPhoneNumber('');
-                      setVerificationCode('');
-                      setIsVerifying(false);
-                    }}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                  >
-                    取消
-                  </button>
-                  <button
-                    onClick={isVerifying ? handleVerifyCode : handleSendPhoneVerification}
-                    disabled={isLoading}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
-                  >
-                    {isLoading ? '處理中...' : isVerifying ? '驗證' : '發送驗證碼'}
-                  </button>
+              <div>
+                <label className="block text-sm font-medium text-primary-700 mb-1">
+                  電子郵件
+                </label>
+                <p className="text-primary-900">{email}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-primary-700 mb-1">
+                  手機號碼
+                </label>
+                <p className="text-primary-900">{phone || '未設置'}</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-primary-50 p-4 rounded-lg">
+                <h3 className="text-lg font-semibold text-primary-900 mb-2">
+                  游戲統計
+                </h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-primary-600">
+                      {gameStats.total}
+                    </p>
+                    <p className="text-sm text-primary-600">總游戲數</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-primary-600">
+                      {gameStats.completed}
+                    </p>
+                    <p className="text-sm text-primary-600">已完成</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-primary-600">
+                      {gameStats.inProgress}
+                    </p>
+                    <p className="text-sm text-primary-600">進行中</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-primary-50 p-4 rounded-lg">
+                <h3 className="text-lg font-semibold text-primary-900 mb-2">
+                  關聯賬號
+                </h3>
+                <div className="space-y-2">
+                  {linkedAccounts.map((account, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-2 bg-white rounded-lg border border-primary-100"
+                    >
+                      <div className="flex items-center">
+                        <span className="text-primary-600">
+                          {account.type === 'email' && '📧'}
+                          {account.type === 'phone' && '📱'}
+                          {account.type === 'google' && 'G'}
+                        </span>
+                        <span className="ml-2 text-primary-900">
+                          {account.value}
+                        </span>
+                      </div>
+                      <span
+                        className={`text-sm ${
+                          account.isVerified
+                            ? 'text-green-600'
+                            : 'text-yellow-600'
+                        }`}
+                      >
+                        {account.isVerified ? '已驗證' : '未驗證'}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
           </div>
-        )}
-
-        {/* reCAPTCHA 容器 */}
-        <div id="recaptcha-container" className="hidden"></div>
-
-        {/* 游戲統計和清除功能 */}
-        <div className="bg-white shadow rounded-lg p-6 mb-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">游戲記錄</h2>
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            <div className="bg-indigo-50 rounded-lg p-4">
-              <p className="text-sm text-indigo-600">總游戲數</p>
-              <p className="text-2xl font-bold text-indigo-700">{gameStats.total}</p>
-              <p className="text-xs text-indigo-500 mt-1">包含進行中的游戲</p>
-            </div>
-            <div className="bg-green-50 rounded-lg p-4">
-              <p className="text-sm text-green-600">已完成劇本</p>
-              <p className="text-2xl font-bold text-green-700">{gameStats.completed}</p>
-              <p className="text-xs text-green-500 mt-1">每個劇本只計算一次</p>
-            </div>
-            <div className="bg-yellow-50 rounded-lg p-4">
-              <p className="text-sm text-yellow-600">進行中</p>
-              <p className="text-2xl font-bold text-yellow-700">{gameStats.inProgress}</p>
-              <p className="text-xs text-yellow-500 mt-1">當前進行中的游戲</p>
-            </div>
-          </div>
-          <button
-            onClick={handleClearGameHistory}
-            disabled={isClearingGames || gameStats.total === 0}
-            className="w-full px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isClearingGames ? '清除中...' : '清除所有游戲記錄'}
-          </button>
         </div>
       </div>
     </div>
