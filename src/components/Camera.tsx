@@ -76,8 +76,18 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
 
+      // 保存當前上下文狀態
+      context.save();
+
+      // 應用鏡像翻轉
+      context.translate(canvas.width, 0);
+      context.scale(-1, 1);
+
       // 繪製視頻幀
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // 恢復上下文狀態
+      context.restore();
 
       // 轉換為 blob
       const blob = await new Promise<Blob>((resolve, reject) => {
@@ -128,18 +138,13 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
             top: 0,
             left: 0,
             width: '100%',
-            height: '100%'
+            height: '100%',
+            objectFit: 'cover'
           }}
         />
         <canvas 
           ref={canvasRef} 
           className="hidden"
-          style={{
-            transform: 'scaleX(-1)',
-            position: 'absolute',
-            top: 0,
-            left: 0
-          }}
         />
         
         <div className="absolute bottom-0 left-0 right-0 p-4 flex justify-center space-x-4">
