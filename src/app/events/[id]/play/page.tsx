@@ -285,22 +285,58 @@ export default function PlayPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">載入中...</p>
+      <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex items-center justify-center">
+        <div className="card text-center">
+          <h2 className="text-xl font-semibold text-primary-900 mb-4">發生錯誤</h2>
+          <p className="text-primary-600">{error}</p>
+          <button
+            onClick={() => router.push('/events')}
+            className="btn-primary mt-4"
+          >
+            返回活動列表
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* 左側：地圖 */}
+        <div className="card mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-primary-900">{script?.title}</h1>
+              <p className="text-primary-600">{script?.description}</p>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="text-center">
+                <p className="text-sm text-primary-500">已完成</p>
+                <p className="text-xl font-bold text-primary-700">
+                  {tasks.filter(t => t.status === 'completed').length} / {tasks.length}
+                </p>
+              </div>
+              {mode === 'multiplayer' && roomCode && (
+                <div className="text-center">
+                  <p className="text-sm text-primary-500">房間代碼</p>
+                  <p className="text-xl font-bold text-primary-700">{roomCode}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow-lg overflow-hidden h-[600px]">
+            <div className="card h-[600px]">
               <Map
                 currentLocation={currentLocation}
                 tasks={tasks}
@@ -310,58 +346,72 @@ export default function PlayPage() {
             </div>
           </div>
 
-          {/* 右側：任務列表 */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <h2 className="text-2xl font-bold mb-6">任務列表</h2>
+          <div className="space-y-6">
+            <div className="card">
+              <h2 className="text-xl font-semibold text-primary-900 mb-4">任務列表</h2>
               <div className="space-y-4">
                 {tasks.map((task) => (
                   <div
                     key={task.id}
                     className={`p-4 rounded-lg border ${
                       task.status === 'completed'
-                        ? 'bg-green-50 border-green-200'
+                        ? 'bg-primary-50 border-primary-200'
                         : task.status === 'unlocked'
-                        ? 'bg-blue-50 border-blue-200'
+                        ? 'bg-white border-primary-300'
                         : 'bg-gray-50 border-gray-200'
                     }`}
                   >
-                    <h3 className="font-semibold mb-2">{task.title}</h3>
-                    <p className="text-sm text-gray-600 mb-2">{task.description}</p>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-500">
-                        {task.location.name}
-                      </span>
-                      <button
-                        onClick={() => handleTaskClick(task)}
-                        disabled={task.status === 'locked'}
-                        className={`px-3 py-1 rounded text-sm ${
-                          task.status === 'completed'
-                            ? 'bg-green-100 text-green-800'
-                            : task.status === 'unlocked'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-gray-100 text-gray-400'
-                        }`}
-                      >
-                        {task.status === 'completed'
-                          ? '已完成'
-                          : task.status === 'unlocked'
-                          ? '開始任務'
-                          : '已鎖定'}
-                      </button>
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="font-medium text-primary-900">{task.title}</h3>
+                        <p className="text-sm text-primary-600">{task.description}</p>
+                        {task.distance !== undefined && (
+                          <p className="text-xs text-primary-500 mt-1">
+                            距離：{formatDistance(task.distance)}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        {task.status === 'completed' && (
+                          <span className="text-green-500">
+                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </span>
+                        )}
+                        {task.status === 'unlocked' && (
+                          <button
+                            onClick={() => handleTaskClick(task)}
+                            className="btn-primary text-sm"
+                          >
+                            開始
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
+
+            {locationError && (
+              <div className="card bg-red-50 border-red-200">
+                <p className="text-red-600">{locationError}</p>
+              </div>
+            )}
+
+            {taskError && (
+              <div className="card bg-red-50 border-red-200">
+                <p className="text-red-600">{taskError}</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* 相機彈出層 */}
       {showCamera && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-4 max-w-lg w-full mx-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="card bg-white">
             <Camera
               onCapture={handlePhotoCapture}
               onError={handleCameraError}

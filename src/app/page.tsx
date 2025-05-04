@@ -68,20 +68,20 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+      <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="bg-white rounded-lg shadow-sm p-6">
+        <div className="card">
           <div className="flex items-center space-x-3">
             {user ? (
               <>
-                <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center">
+                <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
                   {user.photoURL ? (
                     <Image
                       src={user.photoURL}
@@ -91,16 +91,16 @@ export default function HomePage() {
                       className="rounded-full"
                     />
                   ) : (
-                    <span className="text-xl font-medium text-indigo-600">
+                    <span className="text-xl font-medium text-primary-600">
                       {(user.displayName || '用戶')[0]}
                     </span>
                   )}
                 </div>
                 <div>
-                  <p className="font-medium text-gray-900">
+                  <p className="font-medium text-primary-900">
                     {user.displayName || '用戶'}
                   </p>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-primary-600">
                     已完成 {completedGames} 個劇本
                   </p>
                 </div>
@@ -108,7 +108,7 @@ export default function HomePage() {
             ) : (
               <Link
                 href="/auth/login"
-                className="text-indigo-600 font-medium"
+                className="nav-link"
               >
                 登入/註冊
               </Link>
@@ -116,28 +116,28 @@ export default function HomePage() {
           </div>
 
           {inProgressGames.length > 0 && (
-            <div className="mt-6 border-t pt-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">進行中的游戲</h3>
+            <div className="mt-6 border-t border-primary-100 pt-6">
+              <h3 className="heading">進行中的游戲</h3>
               <div className="space-y-4">
                 {inProgressGames.map((session) => {
                   const script = sampleScripts.find(s => s.id === session.scriptId);
                   if (!script) return null;
 
                   return (
-                    <div key={session.id} className="bg-indigo-50 rounded-lg p-4">
+                    <div key={session.id} className="bg-primary-50 rounded-lg p-4 border border-primary-100">
                       <div className="flex justify-between items-center">
                         <div>
-                          <p className="font-medium text-gray-900">{script.title}</p>
-                          <p className="mt-1 text-sm text-gray-500">
+                          <p className="font-medium text-primary-900">{script.title}</p>
+                          <p className="mt-1 text-sm text-primary-600">
                             已完成 {session.completedLocations.length} / {script.locations.length} 個地點
                           </p>
-                          <p className="mt-1 text-xs text-gray-400">
+                          <p className="mt-1 text-xs text-primary-400">
                             上次更新：{new Date(session.lastUpdated).toLocaleString()}
                           </p>
                         </div>
                         <Link
                           href={`/events/${session.scriptId}/play`}
-                          className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                          className="btn-primary"
                         >
                           繼續
                         </Link>
