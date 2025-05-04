@@ -309,116 +309,102 @@ export default function PlayPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="card mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-primary-900">{script?.title}</h1>
-              <p className="text-primary-600">{script?.description}</p>
-            </div>
+    <div className="min-h-screen bg-primary-50">
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <div className="bg-white rounded-lg shadow-sm border border-primary-100 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-2xl font-bold text-primary-900">{script?.title}</h1>
             <div className="flex items-center space-x-4">
-              <div className="text-center">
-                <p className="text-sm text-primary-500">已完成</p>
-                <p className="text-xl font-bold text-primary-700">
-                  {tasks.filter(t => t.status === 'completed').length} / {tasks.length}
-                </p>
-              </div>
-              {mode === 'multiplayer' && roomCode && (
-                <div className="text-center">
-                  <p className="text-sm text-primary-500">房間代碼</p>
-                  <p className="text-xl font-bold text-primary-700">{roomCode}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <div className="card h-[600px]">
-              <Map
-                currentLocation={currentLocation}
-                tasks={tasks}
-                onTaskClick={handleTaskClick}
-                apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''}
-              />
+              <span className="text-primary-600">進行中任務: {playCount}</span>
+              <button
+                onClick={() => router.push('/events')}
+                className="btn-secondary"
+              >
+                返回
+              </button>
             </div>
           </div>
 
-          <div className="space-y-6">
-            <div className="card">
-              <h2 className="text-xl font-semibold text-primary-900 mb-4">任務列表</h2>
-              <div className="space-y-4">
-                {tasks.map((task) => (
-                  <div
-                    key={task.id}
-                    className={`p-4 rounded-lg border ${
-                      task.status === 'completed'
-                        ? 'bg-primary-50 border-primary-200'
-                        : task.status === 'unlocked'
-                        ? 'bg-white border-primary-300'
-                        : 'bg-gray-50 border-gray-200'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
+          {locationError && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-600">
+              {locationError}
+            </div>
+          )}
+
+          {taskError && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-600">
+              {taskError}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div className="bg-primary-50 p-4 rounded-lg">
+                <h2 className="text-lg font-semibold text-primary-900 mb-4">任務列表</h2>
+                <div className="space-y-2">
+                  {tasks.map((task) => (
+                    <div
+                      key={task.id}
+                      onClick={() => handleTaskClick(task)}
+                      className={`p-4 rounded-lg cursor-pointer transition-colors ${
+                        task.status === 'completed'
+                          ? 'bg-green-50 border border-green-200'
+                          : task.status === 'unlocked'
+                          ? 'bg-primary-50 border border-primary-200 hover:bg-primary-100'
+                          : 'bg-gray-50 border border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
                         <h3 className="font-medium text-primary-900">{task.title}</h3>
-                        <p className="text-sm text-primary-600">{task.description}</p>
-                        {task.distance !== undefined && (
-                          <p className="text-xs text-primary-500 mt-1">
-                            距離：{formatDistance(task.distance)}
-                          </p>
-                        )}
+                        <span
+                          className={`text-sm ${
+                            task.status === 'completed'
+                              ? 'text-green-600'
+                              : task.status === 'unlocked'
+                              ? 'text-primary-600'
+                              : 'text-gray-400'
+                          }`}
+                        >
+                          {task.status === 'completed'
+                            ? '已完成'
+                            : task.status === 'unlocked'
+                            ? '進行中'
+                            : '鎖定'}
+                        </span>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        {task.status === 'completed' && (
-                          <span className="text-green-500">
-                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                          </span>
-                        )}
-                        {task.status === 'unlocked' && (
-                          <button
-                            onClick={() => handleTaskClick(task)}
-                            className="btn-primary text-sm"
-                          >
-                            開始
-                          </button>
-                        )}
-                      </div>
+                      <p className="mt-2 text-sm text-primary-600">{task.description}</p>
+                      {task.distance !== undefined && (
+                        <p className="mt-2 text-sm text-primary-500">
+                          距離: {formatDistance(task.distance)}
+                        </p>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
 
-            {locationError && (
-              <div className="card bg-red-50 border-red-200">
-                <p className="text-red-600">{locationError}</p>
+            <div className="space-y-4">
+              <div className="bg-primary-50 p-4 rounded-lg">
+                <h2 className="text-lg font-semibold text-primary-900 mb-4">地圖</h2>
+                <Map
+                  currentLocation={currentLocation}
+                  tasks={tasks}
+                  onTaskClick={handleTaskClick}
+                  apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''}
+                />
               </div>
-            )}
-
-            {taskError && (
-              <div className="card bg-red-50 border-red-200">
-                <p className="text-red-600">{taskError}</p>
-              </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
 
       {showCamera && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="card bg-white">
-            <Camera
-              onCapture={handlePhotoCapture}
-              onError={handleCameraError}
-              onCancel={handleCancelPhoto}
-            />
-          </div>
-        </div>
+        <Camera
+          onCapture={handlePhotoCapture}
+          onCancel={handleCancelPhoto}
+          onError={handleCameraError}
+        />
       )}
     </div>
   );

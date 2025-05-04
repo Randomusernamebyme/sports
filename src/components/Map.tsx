@@ -27,15 +27,20 @@ export default function Map({ currentLocation, tasks, onTaskClick, apiKey }: Map
       }
 
       try {
-        const loader = new Loader({
-          apiKey,
-          version: 'weekly',
-          libraries: ['places'],
-          region: 'HK',
-          language: 'zh-HK'
-        });
+        // 檢查 Google Maps API 是否已加載
+        if (!window.google) {
+          const loader = new Loader({
+            apiKey,
+            version: 'weekly',
+            libraries: ['places'],
+            region: 'HK',
+            language: 'zh-HK'
+          });
 
-        await loader.load();
+          await loader.load();
+        }
+
+        // 創建地圖實例
         const mapInstance = new google.maps.Map(mapRef.current, {
           center: { lat: 22.2783, lng: 114.1747 },
           zoom: 15,
@@ -61,10 +66,22 @@ export default function Map({ currentLocation, tasks, onTaskClick, apiKey }: Map
         console.error('初始化地圖失敗:', error);
         setError('初始化地圖失敗，請稍後重試');
         setLoading(false);
+        
+        // 如果出現錯誤，嘗試重新初始化
+        setTimeout(() => {
+          initMap();
+        }, 1000);
       }
     };
 
     initMap();
+
+    return () => {
+      // 清理地圖實例
+      if (map) {
+        setMap(null);
+      }
+    };
   }, [apiKey]);
 
   // 更新當前位置標記
@@ -133,10 +150,10 @@ export default function Map({ currentLocation, tasks, onTaskClick, apiKey }: Map
 
   if (loading) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-100">
+      <div className="w-full h-full flex items-center justify-center bg-primary-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">載入地圖中...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-4 text-primary-600">載入地圖中...</p>
         </div>
       </div>
     );
@@ -144,12 +161,12 @@ export default function Map({ currentLocation, tasks, onTaskClick, apiKey }: Map
 
   if (error) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-100">
+      <div className="w-full h-full flex items-center justify-center bg-primary-50">
         <div className="text-center">
           <p className="text-red-600 mb-4">{error}</p>
           <button
             onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+            className="btn-primary"
           >
             重試
           </button>
@@ -161,7 +178,7 @@ export default function Map({ currentLocation, tasks, onTaskClick, apiKey }: Map
   return (
     <div 
       ref={mapRef} 
-      className="w-full h-full rounded-lg overflow-hidden shadow-lg"
+      className="w-full h-full rounded-lg overflow-hidden shadow-sm border border-primary-100"
       style={{ minHeight: '400px' }}
     />
   );

@@ -22,6 +22,15 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
   useEffect(() => {
     const initCamera = async () => {
       try {
+        // 先檢查相機權限
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        
+        if (videoDevices.length === 0) {
+          throw new Error('未找到可用的相機設備');
+        }
+
+        // 嘗試獲取相機訪問權限
         const mediaStream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: 'environment',
@@ -30,8 +39,24 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
           }
         });
 
+        if (!mediaStream) {
+          throw new Error('無法訪問相機');
+        }
+
+        // 檢查視頻流是否有效
+        const videoTrack = mediaStream.getVideoTracks()[0];
+        if (!videoTrack) {
+          throw new Error('無法獲取視頻流');
+        }
+
         if (videoRef.current) {
           videoRef.current.srcObject = mediaStream;
+          // 等待視頻元素加載完成
+          await new Promise((resolve) => {
+            if (videoRef.current) {
+              videoRef.current.onloadedmetadata = resolve;
+            }
+          });
         }
 
         setStream(mediaStream);
@@ -40,6 +65,11 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
         console.error('初始化相機失敗:', error);
         onError('無法訪問相機，請確保已授予相機權限');
         setLoading(false);
+        
+        // 如果出現錯誤，嘗試重新初始化
+        setTimeout(() => {
+          initCamera();
+        }, 1000);
       }
     };
 
@@ -59,8 +89,13 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
     try {
       setLoading(true);
 
-      // 設置 canvas 尺寸
+      // 檢查視頻流是否有效
       const video = videoRef.current;
+      if (!video.videoWidth || !video.videoHeight) {
+        throw new Error('視頻流無效');
+      }
+
+      // 設置 canvas 尺寸
       const canvas = canvasRef.current;
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
@@ -71,9 +106,10 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
       // 轉換為 blob
-      const blob = await new Promise<Blob>((resolve) => {
+      const blob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob((blob) => {
           if (blob) resolve(blob);
+          else reject(new Error('無法生成圖片'));
         }, 'image/jpeg', 0.95);
       });
 
@@ -110,6 +146,7 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
           ref={videoRef}
           autoPlay
           playsInline
+          muted
           className="w-full h-full object-cover"
         />
         <canvas ref={canvasRef} className="hidden" />
