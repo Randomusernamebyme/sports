@@ -19,9 +19,10 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
   const [cameraLabel, setCameraLabel] = useState<string>('');
   const [debugMsg, setDebugMsg] = useState<string>('');
   const { user } = useAuth();
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
-    let isMounted = true;
+    isMountedRef.current = true;
     let activeStream: MediaStream | null = null;
     let triedFront = false;
 
@@ -30,76 +31,75 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
     };
 
     const initCamera = async () => {
-      if (!isMounted) return;
       setLoading(true);
-      setDebugMsg('正在請求相機權限...');
+      setDebugMsg('正在初始化相機...');
       try {
         // 先 unlock label
-        let unlockStream = await navigator.mediaDevices.getUserMedia({ video: true });
-        stopStream(unlockStream);
-        setDebugMsg('已取得權限，正在偵測可用攝像頭...');
-        // enumerateDevices
+        const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        tempStream.getTracks().forEach(track => track.stop());
+
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = devices.filter(d => d.kind === 'videoinput');
         if (videoDevices.length === 0) throw new Error('找不到任何攝像頭');
-        // 優先找標籤包含 back/environment 的攝像頭
-        let backCamera = videoDevices.find(d => /back|environment/i.test(d.label));
-        let frontCamera = videoDevices.find(d => /front|user/i.test(d.label));
+
+        const backCamera = videoDevices.find(d => /back|environment/i.test(d.label));
+        const frontCamera = videoDevices.find(d => /front|user/i.test(d.label));
         let deviceId = backCamera?.deviceId || videoDevices[0].deviceId;
         let label = backCamera?.label || videoDevices[0].label || '未知攝像頭';
+
         setDebugMsg('嘗試啟動攝像頭: ' + label);
         setCameraLabel(label);
+
         let constraints = {
           video: {
             deviceId: { exact: deviceId },
             width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: backCamera ? 'environment' : 'user'
+            height: { ideal: 720 }
           }
         };
+
         try {
           activeStream = await navigator.mediaDevices.getUserMedia(constraints);
         } catch (e) {
-          // fallback 前鏡頭
           if (!triedFront && frontCamera) {
             triedFront = true;
-            setDebugMsg('後鏡頭啟動失敗，嘗試前鏡頭: ' + frontCamera.label);
-            constraints.video = {
-              deviceId: { exact: frontCamera.deviceId },
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-              facingMode: 'user'
-            };
+            setDebugMsg('後鏡頭啟動失敗，改用前鏡頭: ' + frontCamera.label);
+            constraints.video.deviceId = { exact: frontCamera.deviceId };
             activeStream = await navigator.mediaDevices.getUserMedia(constraints);
             setCameraLabel(frontCamera.label);
           } else {
             throw e;
           }
         }
+
         if (!activeStream) throw new Error('無法啟動攝像頭');
+
         if (videoRef.current) {
           videoRef.current.srcObject = activeStream;
-          // 強制 play 並捕捉錯誤
           try {
             await videoRef.current.play();
           } catch (err) {
             setDebugMsg('video.play() 失敗：' + (err instanceof Error ? err.message : String(err)));
           }
         }
-        if (!isMounted) return;
-        setStream(activeStream);
-        setLoading(false);
-        setDebugMsg('攝像頭啟動成功: ' + (cameraLabel || label));
+
+        if (isMountedRef.current) {
+          setStream(activeStream);
+          setLoading(false);
+          const v = videoRef.current;
+          setDebugMsg(`啟動成功，videoWidth: ${v?.videoWidth}, videoHeight: ${v?.videoHeight}, readyState: ${v?.readyState}, srcObject: ${v?.srcObject ? '有' : '無'}`);
+        }
       } catch (error: any) {
-        if (!isMounted) return;
         setDebugMsg('啟動攝像頭失敗: ' + (error?.message || error));
-        onError('無法訪問相機，請嘗試更換瀏覽器或檢查權限');
+        onError('無法訪問相機，請檢查瀏覽器權限或裝置設定');
         setLoading(false);
       }
     };
+
     initCamera();
+
     return () => {
-      isMounted = false;
+      isMountedRef.current = false;
       stopStream(activeStream);
     };
   }, [onError]);
@@ -111,25 +111,24 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
       const context = canvas.getContext('2d');
-      setDebugMsg(`拍照前 videoWidth: ${video.videoWidth}, videoHeight: ${video.videoHeight}, readyState: ${video.readyState}, srcObject: ${video.srcObject ? '有' : '無'}`);
       if (!context) throw new Error('無法獲取 canvas 上下文');
       if (!video.videoWidth || !video.videoHeight) {
-        setDebugMsg('錯誤：相機畫面未正確加載，無法拍照。請確認瀏覽器權限與設備支援。');
-        onError('相機畫面未正確加載，請重試或更換瀏覽器');
+        setDebugMsg('錯誤：相機畫面未正確加載');
+        onError('畫面載入失敗，請確認權限或重新整理');
         setLoading(false);
         return;
       }
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      context.save();
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      context.restore();
+
       const blob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob((blob) => {
           if (blob) resolve(blob);
           else reject(new Error('無法生成圖片'));
         }, 'image/jpeg', 0.95);
       });
+
       const timestamp = new Date().getTime();
       const storageRef = ref(storage, `photos/${user.uid}/${timestamp}.jpg`);
       await uploadBytes(storageRef, blob);
@@ -150,7 +149,7 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-75 z-50">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto"></div>
             <p className="mt-4 text-white">載入相機中...</p>
-            {debugMsg && <p className="mt-2 text-xs text-gray-300">{debugMsg}</p>}
+            {debugMsg && <p className="mt-2 text-xs text-gray-300 text-center whitespace-pre-line">{debugMsg}</p>}
           </div>
         ) : (
           <>
@@ -174,14 +173,7 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
             <div className="absolute top-2 left-2 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded">
               攝像頭：{cameraLabel || '未知'}
             </div>
-            <div className="absolute top-2 right-2 bg-black bg-opacity-60 text-yellow-200 text-xs px-2 py-1 rounded max-w-xs text-right">
-              {debugMsg}
-              {videoRef.current && (
-                <>
-                  <br />videoWidth: {videoRef.current.videoWidth}, videoHeight: {videoRef.current.videoHeight}, readyState: {videoRef.current.readyState}, srcObject: {videoRef.current.srcObject ? '有' : '無'}
-                </>
-              )}
-            </div>
+            {debugMsg && <div className="absolute top-2 right-2 bg-black bg-opacity-60 text-yellow-200 text-xs px-2 py-1 rounded max-w-xs text-right whitespace-pre-line">{debugMsg}</div>}
             <div className="absolute bottom-0 left-0 right-0 p-4 flex justify-center space-x-4">
               <button
                 onClick={onCancel}
@@ -201,4 +193,4 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
       </div>
     </div>
   );
-} 
+}
