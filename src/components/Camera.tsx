@@ -76,11 +76,11 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
 
         if (videoRef.current) {
           videoRef.current.srcObject = activeStream;
-          try {
-            await videoRef.current.play();
-          } catch (err) {
-            setDebugMsg('video.play() 失敗：' + (err instanceof Error ? err.message : String(err)));
-          }
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play();
+            const v = videoRef.current!;
+            setDebugMsg(`✅ loadedmetadata 觸發 → videoWidth: ${v.videoWidth}, videoHeight: ${v.videoHeight}, readyState: ${v.readyState}, srcObject: ${v.srcObject ? '有' : '無'}`);
+          };
         }
 
         if (isMountedRef.current) {
