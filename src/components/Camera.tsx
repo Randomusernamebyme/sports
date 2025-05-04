@@ -54,10 +54,10 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
           }
         };
 
+        let activeStream = null;
         try {
           activeStream = await navigator.mediaDevices.getUserMedia(constraints);
         } catch (e) {
-          // 如果後鏡頭失敗，嘗試前鏡頭
           if (!triedFront && frontCamera) {
             triedFront = true;
             setDebugMsg('後鏡頭啟動失敗，嘗試前鏡頭: ' + frontCamera.label);
@@ -76,6 +76,7 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
         if (!activeStream) throw new Error('無法啟動攝像頭');
         if (videoRef.current) {
           videoRef.current.srcObject = activeStream;
+          videoRef.current.load();
           videoRef.current.play();
         }
         setStream(activeStream);
@@ -103,7 +104,7 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
       const context = canvas.getContext('2d');
-      setDebugMsg(`拍照前 videoWidth: ${video.videoWidth}, videoHeight: ${video.videoHeight}, readyState: ${video.readyState}`);
+      setDebugMsg(`拍照前 videoWidth: ${video.videoWidth}, videoHeight: ${video.videoHeight}, readyState: ${video.readyState}, srcObject: ${video.srcObject ? '有' : '無'}`);
       if (!context) throw new Error('無法獲取 canvas 上下文');
       if (!video.videoWidth || !video.videoHeight) {
         setDebugMsg('錯誤：相機畫面未正確加載，無法拍照。請確認瀏覽器權限與設備支援。');
@@ -155,7 +156,6 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
               muted
               className="w-full h-full object-cover"
               style={{
-                transform: 'scaleX(-1)',
                 position: 'absolute',
                 top: 0,
                 left: 0,
