@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Loader } from '@googlemaps/js-api-loader';
 import { Location, Task } from '@/types/game';
 
@@ -17,39 +17,27 @@ export default function Map({ currentLocation, tasks, onTaskClick, apiKey }: Map
   const [markers, setMarkers] = useState<{ [key: string]: google.maps.Marker }>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const loaderRef = useRef<Loader | null>(null);
 
   // 初始化地圖
   useEffect(() => {
-    if (!mapRef.current) {
-      setError('地圖容器未初始化');
-      setLoading(false);
-      return;
-    }
+    const initMap = async () => {
+      if (!mapRef.current || !apiKey) {
+        setLoading(false);
+        return;
+      }
 
-    if (!apiKey) {
-      setError('Google Maps API 金鑰未設置');
-      setLoading(false);
-      return;
-    }
-
-    try {
-      // 如果已經有 loader 實例，直接使用
-      if (!loaderRef.current) {
-        loaderRef.current = new Loader({
+      try {
+        const loader = new Loader({
           apiKey,
           version: 'weekly',
           libraries: ['places'],
           region: 'HK',
           language: 'zh-HK'
         });
-      }
 
-      loaderRef.current.load().then(() => {
-        if (!mapRef.current) return;
-
+        await loader.load();
         const mapInstance = new google.maps.Map(mapRef.current, {
-          center: { lat: 22.2783, lng: 114.1747 }, // 銅鑼灣中心點
+          center: { lat: 22.2783, lng: 114.1747 },
           zoom: 15,
           mapTypeControl: false,
           streetViewControl: false,
@@ -69,23 +57,14 @@ export default function Map({ currentLocation, tasks, onTaskClick, apiKey }: Map
 
         setMap(mapInstance);
         setLoading(false);
-      }).catch((error) => {
-        console.error('載入 Google Maps 失敗:', error);
-        setError('載入地圖失敗，請稍後重試');
+      } catch (error) {
+        console.error('初始化地圖失敗:', error);
+        setError('初始化地圖失敗，請稍後重試');
         setLoading(false);
-      });
-    } catch (error) {
-      console.error('初始化地圖時發生錯誤:', error);
-      setError('初始化地圖時發生錯誤');
-      setLoading(false);
-    }
-
-    return () => {
-      if (map) {
-        // 清理地圖實例
-        setMap(null);
       }
     };
+
+    initMap();
   }, [apiKey]);
 
   // 更新當前位置標記
@@ -107,7 +86,6 @@ export default function Map({ currentLocation, tasks, onTaskClick, apiKey }: Map
       optimized: true
     });
 
-    // 自動縮放到當前位置
     map.panTo(currentLocation.coordinates);
 
     return () => {
@@ -119,11 +97,9 @@ export default function Map({ currentLocation, tasks, onTaskClick, apiKey }: Map
   useEffect(() => {
     if (!map) return;
 
-    // 清除舊的標記
     Object.values(markers).forEach(marker => marker.setMap(null));
     const newMarkers: { [key: string]: google.maps.Marker } = {};
 
-    // 創建新的標記
     tasks.forEach(task => {
       const marker = new google.maps.Marker({
         position: task.location.coordinates,
