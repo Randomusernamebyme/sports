@@ -154,12 +154,30 @@ export const useGameSession = (scriptId: string) => {
         if (!querySnapshot.empty) {
           const doc = querySnapshot.docs[0];
           const data = doc.data();
+          
+          // 確保 tasks 屬性存在
+          const tasks = data.tasks || {};
+          const sampleScript = sampleScripts.find(s => s.id === scriptId);
+          
+          // 如果 tasks 為空，初始化所有任務
+          if (Object.keys(tasks).length === 0 && sampleScript) {
+            sampleScript.locations.forEach((_, index) => {
+              const taskId = `task-${index + 1}`;
+              tasks[taskId] = {
+                status: index === 0 ? 'unlocked' : 'locked',
+                completedAt: undefined,
+                photo: undefined
+              };
+            });
+          }
+
           setGameSession({
             ...data,
             id: doc.id,
             startTime: data.startTime instanceof Timestamp ? data.startTime.toDate() : new Date(data.startTime),
             lastUpdated: data.lastUpdated instanceof Timestamp ? data.lastUpdated.toDate() : new Date(data.lastUpdated),
-            endTime: data.endTime ? (data.endTime instanceof Timestamp ? data.endTime.toDate() : new Date(data.endTime)) : undefined
+            endTime: data.endTime ? (data.endTime instanceof Timestamp ? data.endTime.toDate() : new Date(data.endTime)) : undefined,
+            tasks
           } as GameSession);
         }
       } catch (error) {
