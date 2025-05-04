@@ -63,13 +63,24 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
         console.log('視頻流已獲取，設置視頻元素...');
 
         if (videoRef.current) {
+          // 確保視頻元素已準備好
+          videoRef.current.srcObject = null;
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // 設置視頻流
           videoRef.current.srcObject = mediaStream;
           
           // 等待視頻元素加載完成
           await new Promise((resolve, reject) => {
             if (videoRef.current) {
-              videoRef.current.onloadedmetadata = resolve;
-              videoRef.current.onerror = reject;
+              videoRef.current.onloadedmetadata = () => {
+                console.log('視頻元數據已加載');
+                resolve(true);
+              };
+              videoRef.current.onerror = (error) => {
+                console.error('視頻元素錯誤:', error);
+                reject(error);
+              };
               
               // 設置超時
               setTimeout(() => {
@@ -82,8 +93,10 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
           await new Promise((resolve) => {
             const checkPlaying = () => {
               if (videoRef.current && videoRef.current.readyState >= 2) {
+                console.log('視頻正在播放');
                 resolve(true);
               } else {
+                console.log('等待視頻播放...');
                 setTimeout(checkPlaying, 100);
               }
             };
@@ -197,8 +210,27 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
           playsInline
           muted
           className="w-full h-full object-cover"
+          style={{
+            transform: 'scaleX(-1)', // 鏡像翻轉
+            backgroundColor: 'transparent',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover'
+          }}
         />
-        <canvas ref={canvasRef} className="hidden" />
+        <canvas 
+          ref={canvasRef} 
+          className="hidden"
+          style={{
+            transform: 'scaleX(-1)', // 鏡像翻轉
+            position: 'absolute',
+            top: 0,
+            left: 0
+          }}
+        />
         
         <div className="absolute bottom-0 left-0 right-0 p-4 flex justify-center space-x-4">
           <button
