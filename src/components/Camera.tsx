@@ -20,24 +20,35 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
 
   // 初始化相機
   useEffect(() => {
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
+
     const initCamera = async () => {
       try {
-        // 先檢查相機權限
+        setLoading(true);
+        console.log('開始初始化相機...');
+
+        // 檢查相機權限
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        
+        console.log('可用的相機設備:', videoDevices);
         
         if (videoDevices.length === 0) {
           throw new Error('未找到可用的相機設備');
         }
 
         // 嘗試獲取相機訪問權限
-        const mediaStream = await navigator.mediaDevices.getUserMedia({
+        const constraints = {
           video: {
             facingMode: 'environment',
             width: { ideal: 1920 },
             height: { ideal: 1080 }
           }
-        });
+        };
+
+        console.log('嘗試獲取相機訪問權限...');
+        const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
 
         if (!mediaStream) {
           throw new Error('無法訪問相機');
@@ -49,27 +60,57 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
           throw new Error('無法獲取視頻流');
         }
 
+        console.log('視頻流已獲取，設置視頻元素...');
+
         if (videoRef.current) {
           videoRef.current.srcObject = mediaStream;
+          
           // 等待視頻元素加載完成
-          await new Promise((resolve) => {
+          await new Promise((resolve, reject) => {
             if (videoRef.current) {
               videoRef.current.onloadedmetadata = resolve;
+              videoRef.current.onerror = reject;
+              
+              // 設置超時
+              setTimeout(() => {
+                reject(new Error('視頻加載超時'));
+              }, 5000);
             }
+          });
+
+          // 檢查視頻是否真的在播放
+          await new Promise((resolve) => {
+            const checkPlaying = () => {
+              if (videoRef.current && videoRef.current.readyState >= 2) {
+                resolve(true);
+              } else {
+                setTimeout(checkPlaying, 100);
+              }
+            };
+            checkPlaying();
           });
         }
 
         setStream(mediaStream);
         setLoading(false);
+        console.log('相機初始化成功');
       } catch (error) {
         console.error('初始化相機失敗:', error);
-        onError('無法訪問相機，請確保已授予相機權限');
-        setLoading(false);
         
-        // 如果出現錯誤，嘗試重新初始化
-        setTimeout(() => {
-          initCamera();
-        }, 1000);
+        // 清理現有的視頻流
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+          setStream(null);
+        }
+
+        if (retryCount < MAX_RETRIES) {
+          retryCount++;
+          console.log(`重試初始化相機 (${retryCount}/${MAX_RETRIES})...`);
+          setTimeout(initCamera, 1000);
+        } else {
+          onError('無法訪問相機，請確保已授予相機權限並重新整理頁面');
+          setLoading(false);
+        }
       }
     };
 
@@ -77,7 +118,9 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
 
     return () => {
       if (stream) {
+        console.log('清理相機資源...');
         stream.getTracks().forEach(track => track.stop());
+        setStream(null);
       }
     };
   }, [onError]);
@@ -88,12 +131,15 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
 
     try {
       setLoading(true);
+      console.log('開始拍照...');
 
       // 檢查視頻流是否有效
       const video = videoRef.current;
       if (!video.videoWidth || !video.videoHeight) {
         throw new Error('視頻流無效');
       }
+
+      console.log('視頻尺寸:', video.videoWidth, 'x', video.videoHeight);
 
       // 設置 canvas 尺寸
       const canvas = canvasRef.current;
@@ -113,12 +159,15 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
         }, 'image/jpeg', 0.95);
       });
 
+      console.log('圖片已生成，開始上傳...');
+
       // 上傳到 Firebase Storage
       const timestamp = new Date().getTime();
       const storageRef = ref(storage, `photos/${user.uid}/${timestamp}.jpg`);
       await uploadBytes(storageRef, blob);
       const photoUrl = await getDownloadURL(storageRef);
 
+      console.log('圖片上傳成功:', photoUrl);
       onCapture(photoUrl);
     } catch (error) {
       console.error('拍照失敗:', error);
