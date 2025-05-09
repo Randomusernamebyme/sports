@@ -61,6 +61,10 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
 
         try {
           activeStream = await navigator.mediaDevices.getUserMedia(constraints);
+          // 檢查 stream 是否有 video track
+          if (!activeStream.getVideoTracks || activeStream.getVideoTracks().length === 0) {
+            throw new Error('取得的媒體流沒有 video track，請檢查裝置或權限');
+          }
         } catch (e) {
           if (!triedFront && frontCamera) {
             triedFront = true;
@@ -78,7 +82,15 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
         if (videoRef.current) {
           videoRef.current.srcObject = activeStream;
           // 立即嘗試播放
-          videoRef.current.play().catch(() => {});
+          videoRef.current.play().catch((err) => {
+            setDebugMsg('video.play() 失敗: ' + (err?.message || err));
+            onError('無法播放相機畫面，請檢查權限或瀏覽器設定');
+          });
+          // 監聽 video error 事件
+          videoRef.current.onerror = (event) => {
+            setDebugMsg('video 元素發生錯誤');
+            onError('相機畫面載入失敗，請檢查權限或瀏覽器設定');
+          };
           // 啟動超時保護
           timeoutId = setTimeout(() => {
             setLoading(false);
