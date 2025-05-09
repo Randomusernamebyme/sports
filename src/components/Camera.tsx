@@ -33,6 +33,7 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
     const initCamera = async () => {
       setLoading(true);
       setDebugMsg('正在初始化相機...');
+      let timeoutId: NodeJS.Timeout | null = null;
       try {
         // 先 unlock label
         const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -76,7 +77,16 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
 
         if (videoRef.current) {
           videoRef.current.srcObject = activeStream;
+          // 立即嘗試播放
+          videoRef.current.play().catch(() => {});
+          // 啟動超時保護
+          timeoutId = setTimeout(() => {
+            setLoading(false);
+            setDebugMsg('相機啟動逾時，請檢查權限或重新整理');
+            onError('相機啟動逾時，請檢查權限或重新整理');
+          }, 5000);
           videoRef.current.onloadedmetadata = () => {
+            if (timeoutId) clearTimeout(timeoutId);
             videoRef.current?.play();
             const v = videoRef.current!;
             setDebugMsg(`✅ loadedmetadata 觸發 → videoWidth: ${v.videoWidth}, videoHeight: ${v.videoHeight}, readyState: ${v.readyState}, srcObject: ${v.srcObject ? '有' : '無'}`);
