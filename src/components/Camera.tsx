@@ -80,14 +80,12 @@ export default function Camera({ onCapture, onCancel, onError }: CameraProps) {
             videoRef.current?.play();
             const v = videoRef.current!;
             setDebugMsg(`✅ loadedmetadata 觸發 → videoWidth: ${v.videoWidth}, videoHeight: ${v.videoHeight}, readyState: ${v.readyState}, srcObject: ${v.srcObject ? '有' : '無'}`);
+            setLoading(false);
           };
         }
 
         if (isMountedRef.current) {
           setStream(activeStream);
-          setLoading(false);
-          const v = videoRef.current;
-          setDebugMsg(`啟動成功，videoWidth: ${v?.videoWidth}, videoHeight: ${v?.videoHeight}, readyState: ${v?.readyState}, srcObject: ${v?.srcObject ? '有' : '無'}`);
         }
       } catch (error: any) {
         setDebugMsg('啟動攝像頭失敗: ' + (error?.message || error));
